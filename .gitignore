@@ -1,0 +1,8 @@
+.vs/
+Debug/
+
+*.sln
+
+**/Debug/
+
+**/*.vcxproj*
