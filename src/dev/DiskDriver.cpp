@@ -145,13 +145,13 @@ void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 	/* 格式化文件区 */
 	for (int i = block_base; i < spb.s_fsize - 14; i++) {
 		char empty_block[Inode::BLOCK_SIZE] = { '\0' };
-		if ((i - block_base) % 100 == 0) {
-			int& nfree = *reinterpret_cast<int*>(&empty_block);
-			int(&free)[100] = *reinterpret_cast<int(*)[100]>(&empty_block + sizeof(nfree));
-	
+		if (i != block_base && (i - block_base) % 100 == 0) {
+			int& nfree = *reinterpret_cast<int*>(empty_block);
+			int(&free)[100] = *reinterpret_cast<int(*)[100]>(empty_block + sizeof(nfree));
+
 			nfree = 100;
 			for (int j = 0; j < 100; j++) {
-				free[j] = i - block_base - 100 + j;
+				free[j] = i - 100 + j;
 			}
 		}
 
