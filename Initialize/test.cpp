@@ -7,6 +7,7 @@
 #include "../src/inc/FileSystem.h"
 #include "../src/inc/INode.h"
 #include "../src/inc/User.h"
+#include "test.h"
 using namespace std;
 
 void test()

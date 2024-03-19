@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include "fsapi.h"
+#include "test.h"
 
 using cmdFuncPtr = void(*)(const std::vector<std::string>&);
 
@@ -21,6 +22,9 @@ void cmdExec(std::vector<std::string>& cmdTokens, const std::map<std::string, cm
 
 int main()
 {
+	//test();
+	//return 0;
+
 	const std::map<std::string, cmdFuncPtr> cmdMap = {
 		{"ls",		Ls},
 		{"fopen",	Fopen},

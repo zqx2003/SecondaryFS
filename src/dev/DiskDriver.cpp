@@ -1,10 +1,14 @@
+#include <iostream>
 #include <fstream>
 #include <algorithm>
 #include <cstring>
+#include "../inc/BufferManager.h"
 #include "../inc/DiskDriver.h"
 #include "../inc/FileManager.h"
 #include "../inc/FileSystem.h"
 #include "../inc/INode.h"
+
+std::fstream* DiskDriver::disk = nullptr;
 
 void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 {
@@ -163,4 +167,48 @@ void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 	fout.write(reinterpret_cast<const char*>(devDir), Inode::BLOCK_SIZE);
 	fout.write(reinterpret_cast<const char*>(homeDir), Inode::BLOCK_SIZE);
 	fout.write(reinterpret_cast<const char*>(shellFile), 9 * Inode::BLOCK_SIZE);
+}
+
+void DiskDriver::Open()
+{
+	if (nullptr != disk)
+		return;
+
+	disk = new std::fstream("../dev/SecondaryFS.img", std::ios::in | std::ios::out | std::ios::binary);
+	if (!disk->is_open()) {
+		std::cout << "Disk Open Error!" << std::endl;
+		return;
+	}
+}
+
+void DiskDriver::Close()
+{
+	if (nullptr != disk) {
+		disk->close();
+		delete disk;
+		disk = nullptr;
+	}
+}
+
+void DiskDriver::DevStart(Buf* bp)
+{
+	if (nullptr == bp) {
+		std::cout << "Invalid Buf in DevStart()" << std::endl;
+		return;
+	}
+
+	/* 计算磁盘物理块的起始地址 */
+	const int BUFSIZE = BufferManager::BUFFER_SIZE;
+	int disk_addr = bp->b_blkno * BUFSIZE;
+
+	if ((bp->b_flags & Buf::B_READ) == Buf::B_READ) {	/* 读操作 */
+		disk->seekg(disk_addr, std::ios::beg);
+
+		disk->read(reinterpret_cast<char*>(bp->b_addr), BUFSIZE);
+	}
+	else {	/* 写操作 */
+		disk->seekp(disk_addr, std::ios::beg);
+
+		disk->write(reinterpret_cast<const char*>(bp->b_addr), BUFSIZE);
+	}
 }
