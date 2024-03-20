@@ -10,6 +10,8 @@ public:
 public:
 	void Initialize();
 
+	void IODone(Buf* bp);			/* I/O操作的善后处理 */
+
 private:
 	Buf bFreeList;					/* 自由缓存队列控制块 */
 	Buf m_Buf[NBUF];				/* 缓存控制块数组 */

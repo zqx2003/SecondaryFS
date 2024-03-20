@@ -11,6 +11,8 @@ public:
 	
 	static void Open();
 	static void Close();
+
+	static void DiskHandler();
 	static void DevStart(Buf* bp);
 
 private:

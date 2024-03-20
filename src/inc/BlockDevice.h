@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include "Buf.h"
 
 class Devtab {
@@ -27,10 +28,14 @@ public:
 	virtual void Start() = 0;
 
 public:
+	std::mutex mtx_tab;
 	Devtab* d_tab;
 };
 
 class DiskBlockDevice : public BlockDevice {
+public:
+	static int NSECTOR;		/* 磁盘扇区数，后续将改成系统启动时自动获取 */
+
 public:
 	DiskBlockDevice(Devtab* tab);
 	virtual ~DiskBlockDevice();

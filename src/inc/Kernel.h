@@ -1,8 +1,9 @@
 #pragma once
-#include "../inc/BufferManager.h"
-#include "../inc/FileManager.h"
-#include "../inc/FileSystem.h"
-#include "../inc/User.h"
+#include "BufferManager.h"
+#include "DeviceManager.h"
+#include "FileManager.h"
+#include "FileSystem.h"
+#include "User.h"
 
 class Kernel {
 public:
@@ -12,6 +13,7 @@ public:
 	void Initialize();
 
 	BufferManager& GetBufferManager();
+	DeviceManager& GetDeviceManager();
 	FileManager& GetFileManager();
 	FileSystem& GetFileSystem();
 	User& GetUser();
@@ -26,6 +28,7 @@ private:
 	static Kernel instance;
 
 	BufferManager* m_BufferManager;
+	DeviceManager* m_DeviceManager;
 	FileManager* m_FileManager;
 	FileSystem* m_FileSystem;
 

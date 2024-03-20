@@ -1,3 +1,4 @@
+#include <iostream>
 #include "../inc/Kernel.h"
 
 Kernel Kernel::instance;
@@ -6,6 +7,7 @@ Kernel Kernel::instance;
 * 设备管理相关全局manager
 */
 BufferManager g_BufferManager;
+DeviceManager g_DeviceManager;
 
 /*
 * 文件系统相关全局manager
@@ -20,6 +22,12 @@ User g_user;
 
 Kernel::Kernel()
 {
+	this->m_BufferManager = nullptr;
+	this->m_DeviceManager = nullptr;
+	this->m_FileManager = nullptr;
+	this->m_FileSystem = nullptr;
+
+	this->m_user = nullptr;	/* 模拟一个全局User */
 }
 
 Kernel::~Kernel()
@@ -33,12 +41,18 @@ Kernel& Kernel::Instance()
 
 void Kernel::Initialize()
 {
+	InitBuffer();
 	InitFileSystem();
 }
 
 BufferManager& Kernel::GetBufferManager()
 {
 	return *(this->m_BufferManager);
+}
+
+DeviceManager& Kernel::GetDeviceManager()
+{
+	return *(this->m_DeviceManager);
 }
 
 FileManager& Kernel::GetFileManager()
@@ -59,8 +73,15 @@ User& Kernel::GetUser()
 void Kernel::InitBuffer()
 {
 	this->m_BufferManager = &g_BufferManager;
+	this->m_DeviceManager = &g_DeviceManager;
 
+	std::cout << "Initialize Buffer Manager..." << std::endl;
 	this->GetBufferManager().Initialize();
+	std::cout << "OK." << std::endl;
+
+	std::cout << "Initialize Device Manager..." << std::endl;
+	this->GetDeviceManager().Initilize();
+	std::cout << "OK." << std::endl;
 }
 
 void Kernel::InitFileSystem()
@@ -68,7 +89,13 @@ void Kernel::InitFileSystem()
 	this->m_FileManager = &g_FileManager;
 	this->m_FileSystem = &g_FileSystem;
 
-	
+	std::cout << "Initialize File Manager..." << std::endl;
+	this->GetFileManager().Initialize();
+	std::cout << "OK." << std::endl;
+
+	std::cout << "Initialize File System..." << std::endl;
+	this->GetFileSystem().Initialize();
+	std::cout << "OK." << std::endl;
 }
 
 void Kernel::InitUser()

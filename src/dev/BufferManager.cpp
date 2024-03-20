@@ -4,3 +4,7 @@
 void BufferManager::Initialize()
 {
 }
+
+void BufferManager::IODone(Buf* bp)
+{
+}

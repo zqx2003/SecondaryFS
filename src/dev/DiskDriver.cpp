@@ -2,11 +2,14 @@
 #include <fstream>
 #include <algorithm>
 #include <cstring>
+#include <future>
+#include "../inc/BlockDevice.h"
 #include "../inc/BufferManager.h"
 #include "../inc/DiskDriver.h"
 #include "../inc/FileManager.h"
 #include "../inc/FileSystem.h"
 #include "../inc/INode.h"
+#include "../inc/Kernel.h"
 
 std::fstream* DiskDriver::disk = nullptr;
 
@@ -190,6 +193,18 @@ void DiskDriver::Close()
 	}
 }
 
+void DiskDriver::DiskHandler()
+{
+	Buf* bp;
+	Devtab* dtab;
+	short major = 0;
+
+	DiskBlockDevice& bdev = 
+		dynamic_cast<DiskBlockDevice&>(Kernel::Instance().GetDeviceManager().GetBlockDevice(major));
+
+
+}
+
 void DiskDriver::DevStart(Buf* bp)
 {
 	if (nullptr == bp) {
@@ -204,11 +219,29 @@ void DiskDriver::DevStart(Buf* bp)
 	if ((bp->b_flags & Buf::B_READ) == Buf::B_READ) {	/* 读操作 */
 		disk->seekg(disk_addr, std::ios::beg);
 
-		disk->read(reinterpret_cast<char*>(bp->b_addr), BUFSIZE);
+		/* 异步方式读磁盘 */
+		auto future = std::async(
+			std::launch::async,
+			[bp, BUFSIZE](std::function<void(void)> callback) {			/* 读磁盘 */
+			disk->read(reinterpret_cast<char*>(bp->b_addr), BUFSIZE);
+			callback();
+		},
+			[]() {														/* 使用回调函数模拟磁盘中断 */
+			DiskHandler();
+		});
 	}
 	else {	/* 写操作 */
 		disk->seekp(disk_addr, std::ios::beg);
 
-		disk->write(reinterpret_cast<const char*>(bp->b_addr), BUFSIZE);
+		/* 异步方式写磁盘 */
+		auto future = std::async(
+			std::launch::async,
+			[bp, BUFSIZE](std::function<void(void)> callback) {			/* 写磁盘 */
+			disk->write(reinterpret_cast<const char*>(bp->b_addr), BUFSIZE);
+			callback();
+		},
+			[]() {														/* 使用回调函数模拟磁盘中断 */
+			DiskHandler();
+		});		
 	}
 }

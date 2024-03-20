@@ -130,7 +130,7 @@ void Exit(const std::vector<std::string>& cmdTokens)
 
 void Help(const std::vector<std::string>& cmdTokens)
 {
-	std::string helpInfo =
+	std::string usage =
 		"1.ls\n"
 		"	Usage:ls\n"
 		"	Discription:显示当前目录列表\n"
@@ -171,5 +171,5 @@ void Help(const std::vector<std::string>& cmdTokens)
 		"	Usage:exit\n"
 		"	Discription:退出系统\n"
 		;
-	std::cout << helpInfo << std::endl;
+	std::cout << usage << std::endl;
 }
