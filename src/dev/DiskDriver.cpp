@@ -12,6 +12,8 @@
 #include "../inc/Kernel.h"
 
 std::fstream* DiskDriver::disk = nullptr;
+std::mutex DiskDriver::mtx_r;
+std::mutex DiskDriver::mtx_w;
 
 void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 {
@@ -197,12 +199,24 @@ void DiskDriver::DiskHandler()
 {
 	Buf* bp;
 	Devtab* dtab;
-	short major = 0;
+	short major = 0;	/* 后续改为根据系统根设备号获取主设备号 */
 
 	DiskBlockDevice& bdev = 
 		dynamic_cast<DiskBlockDevice&>(Kernel::Instance().GetDeviceManager().GetBlockDevice(major));
+	dtab = bdev.d_tab;
 
+	bdev.mtx_tab.lock();
+	if (dtab->d_active == 0) {			/* 没有请求项 */
+		bdev.mtx_tab.unlock();
+		return;
+	}
+	bp = dtab->d_actf;				/* 获取本次中断对应的I/O请求Buf */
+	dtab->d_active = 0;				/* 表示设备已空闲 */
 
+	dtab->d_actf = bp->av_forw;		/* 从I/O队列中取出已完成的I/O请求Buf */
+	Kernel::Instance().GetBufferManager().IODone(bp);	/* I/O结束善后工作 */
+	bdev.Start();					/* 启动I/O请求队列中下一个I/O请求 */
+	bdev.mtx_tab.unlock();
 }
 
 void DiskDriver::DevStart(Buf* bp)
@@ -214,16 +228,19 @@ void DiskDriver::DevStart(Buf* bp)
 
 	/* 计算磁盘物理块的起始地址 */
 	const int BUFSIZE = BufferManager::BUFFER_SIZE;
-	int disk_addr = bp->b_blkno * BUFSIZE;
-
+	
 	if ((bp->b_flags & Buf::B_READ) == Buf::B_READ) {	/* 读操作 */
-		disk->seekg(disk_addr, std::ios::beg);
-
 		/* 异步方式读磁盘 */
 		auto future = std::async(
 			std::launch::async,
 			[bp, BUFSIZE](std::function<void(void)> callback) {			/* 读磁盘 */
+			int disk_addr = bp->b_blkno * BUFSIZE;
+
+			mtx_r.lock();												/* 加锁，使用文件流读文件必须互斥 */
+			disk->seekg(disk_addr, std::ios::beg);
 			disk->read(reinterpret_cast<char*>(bp->b_addr), BUFSIZE);
+			mtx_r.unlock();												/* 解锁 */
+
 			callback();
 		},
 			[]() {														/* 使用回调函数模拟磁盘中断 */
@@ -231,13 +248,17 @@ void DiskDriver::DevStart(Buf* bp)
 		});
 	}
 	else {	/* 写操作 */
-		disk->seekp(disk_addr, std::ios::beg);
-
 		/* 异步方式写磁盘 */
 		auto future = std::async(
 			std::launch::async,
 			[bp, BUFSIZE](std::function<void(void)> callback) {			/* 写磁盘 */
+			int disk_addr = bp->b_blkno * BUFSIZE;
+			
+			mtx_w.lock();												/* 加锁，使用文件流写文件 */
+			disk->seekp(disk_addr, std::ios::beg);
 			disk->write(reinterpret_cast<const char*>(bp->b_addr), BUFSIZE);
+			mtx_w.unlock();												/* 解锁 */
+
 			callback();
 		},
 			[]() {														/* 使用回调函数模拟磁盘中断 */
