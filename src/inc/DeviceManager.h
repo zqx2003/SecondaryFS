@@ -4,7 +4,9 @@
 class DeviceManager {
 public:
 	static const int MAX_DEVICE_NUM = 10;			/* 系统允许最大设备数量 */
+	static const int NODEV = -1;					/* NODEV设备号 */
 
+	static const short ROOTDEV = (0 << 8) | 0;		/* 磁盘主从设备号 */
 public:
 	DeviceManager();
 	~DeviceManager();
