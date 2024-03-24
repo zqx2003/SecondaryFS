@@ -1,9 +1,12 @@
 #include <iostream>
+#include <mutex>
 #include "../inc/BufferManager.h"
 #include "../inc/Kernel.h"
 #include "../inc/Utility.h"
 
 /* ========================================BufferManager======================================== */
+std::recursive_mutex BufferManager::mtx_av;
+
 BufferManager::BufferManager()
 {
 }
@@ -82,38 +85,42 @@ loop:
 			 * 设备buf队列(b_forw)，所以不会引起冲突。
 			 */
 
-			/* 对于访问共享的bp的字段，使用互斥锁保护 */
-			/* 等待bp指向的缓存I/O完成，使用信号量实现 */
-
-			//X86Assembly::CLI();
-			if (bp->b_flags & Buf::B_BUSY)
 			{
-				bp->b_flags |= Buf::B_WANTED;
-				//u.u_procp->Sleep((unsigned long)bp, ProcessManager::PRIBIO);
-				//X86Assembly::STI();
-				goto loop;
+				std::unique_lock<std::recursive_mutex> lock(BufferManager::mtx_av);
+				if (bp->b_flags & Buf::B_BUSY)
+				{
+					bp->b_flags |= Buf::B_WANTED;
+					lock.unlock();	/* 入睡前开中断，否则会阻塞之后调用GetBlk的线程 */
+
+					std::unique_lock<std::mutex> bufLock(bp->b_mtx);
+					bp->b_cv.wait(bufLock, [&bp]{return !(bp->b_flags & Buf::B_BUSY); });
+
+					goto loop;
+				}
 			}
-			//X86Assembly::STI();
+			
 			/* 从自由队列中抽取出来 */
 			this->NotAvail(bp);
 			return bp;
 		}
 	}//end of else
 
-	/* 访问自由队列，使用互斥锁保护 */
-	/* 等待自由队列空闲，使用信号量实现 */
-	//X86Assembly::CLI();
-	/* 如果自由队列为空 */
-	if (this->bFreeList.av_forw == &this->bFreeList)
 	{
-		this->bFreeList.b_flags |= Buf::B_WANTED;
-		//u.u_procp->Sleep((unsigned long)&this->bFreeList, ProcessManager::PRIBIO);
-		//X86Assembly::STI();
-		goto loop;
-	}
-	//X86Assembly::STI();
+		std::unique_lock<std::recursive_mutex> lock(BufferManager::mtx_av);
 
-		/* 取自由队列第一个空闲块 */
+		/* 如果自由队列为空 */
+		if (this->bFreeList.av_forw == &this->bFreeList)
+		{
+			this->bFreeList.b_flags |= Buf::B_WANTED;
+			lock.unlock();	/* 入睡前开中断，否则会阻塞之后调用GetBlk的线程 */
+
+			std::unique_lock<std::mutex> bFreeListLock(this->bFreeList.b_mtx);
+			this->bFreeList.b_cv.wait(bFreeListLock, [this] {return this->bFreeList.av_forw != &this->bFreeList; });
+			goto loop;
+		}
+	}
+
+	/* 取自由队列第一个空闲块 */
 	bp = this->bFreeList.av_forw;
 	this->NotAvail(bp);
 
@@ -143,23 +150,43 @@ loop:
 
 void BufferManager::Brelse(Buf* bp)
 {
-	/* 如果有等待使用该缓存的进程，将信号量全部释放 */
-
-	/* 如果有正在等待自由缓存的进程，将信号量全部释放 */
-
 	/* 关中断修改自由缓存队列 */
-	bp->b_flags &= ~(Buf::B_WANTED | Buf::B_BUSY | Buf::B_ASYNC);
-	(this->bFreeList.av_back)->av_forw = bp;
-	bp->av_back = this->bFreeList.av_back;
-	bp->av_forw = &(this->bFreeList);
-	this->bFreeList.av_back = bp;
+	{
+		std::lock_guard<std::recursive_mutex> lock(BufferManager::mtx_av);
+		bp->b_flags &= ~(Buf::B_WANTED | Buf::B_BUSY | Buf::B_ASYNC);
+		(this->bFreeList.av_back)->av_forw = bp;
+		bp->av_back = this->bFreeList.av_back;
+		bp->av_forw = &(this->bFreeList);
+		this->bFreeList.av_back = bp;
+	}
+
+	/* 如果有等待使用该缓存的进程，唤醒 */
+	bp->b_cv.notify_all();
+
+	/* 如果有正在等待自由缓存的进程，唤醒 */
+	this->bFreeList.b_cv.notify_all();
 
 	return;
 }
 
 void BufferManager::IOWait(Buf* bp)
 {
-	/* 关中断，睡眠等待bp->b_flags变为B_DONE */
+	//std::cout << "等待IO操作结束" << std::endl;
+	{
+		std::unique_lock<std::recursive_mutex> lock(BufferManager::mtx_av);
+
+		while ((bp->b_flags & Buf::B_DONE) == 0)
+		{
+			lock.unlock();	/* 入睡前开中断，否则会阻塞之后调用IOWait的线程 */
+
+			//std::cout << "IO操作中，入睡" << std::endl;
+			std::unique_lock<std::mutex> bufLock(bp->b_mtx);
+			bp->b_cv.wait(bufLock, [&bp] {return (bp->b_flags & Buf::B_DONE) != 0; });
+			//std::cout << "IO操作完成，唤醒" << std::endl;
+
+			lock.lock();	/* 返回后会再次判断，继续上锁 */
+		}
+	}
 }
 
 void BufferManager::IODone(Buf* bp)
@@ -174,6 +201,7 @@ void BufferManager::IODone(Buf* bp)
 		bp->b_flags &= ~Buf::B_WANTED;
 
 		/* 唤醒等待进程 */
+		bp->b_cv.notify_all();
 	}
 	return;
 }
@@ -308,9 +336,9 @@ void BufferManager::Bdwrite(Buf* bp)
 
 void BufferManager::Bawrite(Buf* bp)
 {
-	/* 置上B_DONE允许其它进程使用该磁盘块内容 */
-	bp->b_flags |= (Buf::B_DELWRI | Buf::B_DONE);
-	this->Brelse(bp);
+	/* 标记为异步写 */
+	bp->b_flags |= Buf::B_ASYNC;
+	this->Bwrite(bp);
 	return;
 }
 
@@ -338,25 +366,33 @@ void BufferManager::Bflush(short dev)
 	 */
 loop:
 	/* 关中断，将所有延迟写的磁盘块异步写回磁盘 */
-	//X86Assembly::CLI();
-	for (bp = this->bFreeList.av_forw; bp != &(this->bFreeList); bp = bp->av_forw)
+
 	{
-		/* 找出自由队列中所有延迟写的块 */
-		if ((bp->b_flags & Buf::B_DELWRI) && (dev == DeviceManager::NODEV || dev == bp->b_dev))
+		std::lock_guard<std::recursive_mutex> lock(BufferManager::mtx_av);
+		for (bp = this->bFreeList.av_forw; bp != &(this->bFreeList); bp = bp->av_forw)
 		{
-			bp->b_flags |= Buf::B_ASYNC;
-			this->NotAvail(bp);
-			this->Bwrite(bp);
-			goto loop;
+			/* 找出自由队列中所有延迟写的块 */
+			if ((bp->b_flags & Buf::B_DELWRI) && (dev == DeviceManager::NODEV || dev == bp->b_dev))
+			{
+				bp->b_flags |= Buf::B_ASYNC;
+				this->NotAvail(bp);
+				this->Bwrite(bp);
+				goto loop;
+			}
 		}
 	}
-	//X86Assembly::STI();
+
 	return;
 }
 
 Buf& BufferManager::GetBFreeList()
 {
 	return this->bFreeList;
+}
+
+int BufferManager::GetBufId(Buf* bp)
+{
+	return bp - m_Buf;
 }
 
 void BufferManager::NotAvail(Buf* bp)
@@ -372,7 +408,7 @@ Buf* BufferManager::InCore(short adev, int blkno)
 {
 	Buf* bp;
 	Devtab* dp;
-	short major = 0;	/* 后续更改为根据设备号获取主设备号 */
+	short major = Utility::GetMajor(adev);	/* 后续更改为根据设备号获取主设备号 */
 
 	dp = this->m_DeviceManager->GetBlockDevice(major).d_tab;
 	for (bp = dp->b_forw; bp != (Buf*)dp; bp = bp->b_forw) {

@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include "../src/inc/Kernel.h"
 #include "fsapi.h"
 #include "test.h"
 
@@ -22,6 +23,8 @@ void cmdExec(std::vector<std::string>& cmdTokens, const std::map<std::string, cm
 
 int main()
 {
+	Kernel::Instance().Initialize();
+
 	test();
 	return 0;
 

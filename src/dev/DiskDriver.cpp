@@ -10,10 +10,13 @@
 #include "../inc/FileSystem.h"
 #include "../inc/INode.h"
 #include "../inc/Kernel.h"
+#include "../inc/Utility.h"
 
 std::fstream* DiskDriver::disk = nullptr;
-std::mutex DiskDriver::mtx_r;
-std::mutex DiskDriver::mtx_w;
+std::mutex DiskDriver::mtx_rw;
+
+std::queue<std::future<void>> DiskDriver::tasks;
+std::mutex DiskDriver::mtx_queue;
 
 void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 {
@@ -199,24 +202,25 @@ void DiskDriver::DiskHandler()
 {
 	Buf* bp;
 	Devtab* dtab;
-	short major = 0;	/* 后续改为根据系统根设备号获取主设备号 */
+	short major = Utility::GetMajor(DeviceManager::ROOTDEV);
 
 	DiskBlockDevice& bdev = 
 		dynamic_cast<DiskBlockDevice&>(Kernel::Instance().GetDeviceManager().GetBlockDevice(major));
 	dtab = bdev.d_tab;
+	//std::cout << "磁盘中断" << std::endl;
+	{
+		std::lock_guard<std::recursive_mutex> lock(BufferManager::mtx_av);
+		//std::cout << "处理磁盘中断" << std::endl;
+		if (dtab->d_active == 0) {		/* 没有请求项 */
+			return;
+		}
+		bp = dtab->d_actf;				/* 获取本次中断对应的I/O请求Buf */
+		dtab->d_active = 0;				/* 表示设备已空闲 */
 
-	bdev.mtx_tab.lock();
-	if (dtab->d_active == 0) {			/* 没有请求项 */
-		bdev.mtx_tab.unlock();
-		return;
+		dtab->d_actf = bp->av_forw;		/* 从I/O队列中取出已完成的I/O请求Buf */
+		Kernel::Instance().GetBufferManager().IODone(bp);	/* I/O结束善后工作 */
+		bdev.Start();					/* 启动I/O请求队列中下一个I/O请求 */
 	}
-	bp = dtab->d_actf;				/* 获取本次中断对应的I/O请求Buf */
-	dtab->d_active = 0;				/* 表示设备已空闲 */
-
-	dtab->d_actf = bp->av_forw;		/* 从I/O队列中取出已完成的I/O请求Buf */
-	Kernel::Instance().GetBufferManager().IODone(bp);	/* I/O结束善后工作 */
-	bdev.Start();					/* 启动I/O请求队列中下一个I/O请求 */
-	bdev.mtx_tab.unlock();
 }
 
 void DiskDriver::DevStart(Buf* bp)
@@ -225,44 +229,70 @@ void DiskDriver::DevStart(Buf* bp)
 		std::cout << "Invalid Buf in DevStart()" << std::endl;
 		return;
 	}
+	//std::cout << "读取磁盘" << std::endl;
+
+	/* 清空已完成的磁盘线程，避免线程过多占用内存 */
+	TaskClear();
 
 	/* 计算磁盘物理块的起始地址 */
-	const int BUFSIZE = BufferManager::BUFFER_SIZE;
-	
 	if ((bp->b_flags & Buf::B_READ) == Buf::B_READ) {	/* 读操作 */
 		/* 异步方式读磁盘 */
-		auto future = std::async(
-			std::launch::async,
-			[bp, BUFSIZE](std::function<void(void)> callback) {			/* 读磁盘 */
-			int disk_addr = bp->b_blkno * BUFSIZE;
+		std::lock_guard<std::mutex> lock_queue(mtx_queue);
 
-			mtx_r.lock();												/* 加锁，使用文件流读文件必须互斥 */
-			disk->seekg(disk_addr, std::ios::beg);
-			disk->read(reinterpret_cast<char*>(bp->b_addr), BUFSIZE);
-			mtx_r.unlock();												/* 解锁 */
+		tasks.emplace(												/* 将异步读写任务添加到任务队列中，因为std::future会在离开作用域前强制将异步任务执行完 */
+			std::async(
+				std::launch::async,
+				[bp](std::function<void(void)> callback) {			/* 读磁盘 */
+			int disk_addr = bp->b_blkno * BufferManager::BUFFER_SIZE;
+
+			{
+				std::lock_guard<std::mutex> lock(mtx_rw);				/* 加锁，使用文件流读文件必须互斥 */
+				disk->seekg(disk_addr, std::ios::beg);
+				disk->read(reinterpret_cast<char*>(bp->b_addr), BufferManager::BUFFER_SIZE);
+			}
 
 			callback();
 		},
-			[]() {														/* 使用回调函数模拟磁盘中断 */
+				[]() {												/* 使用回调函数模拟磁盘中断 */
 			DiskHandler();
-		});
+		}));
 	}
 	else {	/* 写操作 */
 		/* 异步方式写磁盘 */
-		auto future = std::async(
-			std::launch::async,
-			[bp, BUFSIZE](std::function<void(void)> callback) {			/* 写磁盘 */
-			int disk_addr = bp->b_blkno * BUFSIZE;
-			
-			mtx_w.lock();												/* 加锁，使用文件流写文件 */
-			disk->seekp(disk_addr, std::ios::beg);
-			disk->write(reinterpret_cast<const char*>(bp->b_addr), BUFSIZE);
-			mtx_w.unlock();												/* 解锁 */
+		std::lock_guard<std::mutex> lock_queue(mtx_queue);
+
+		tasks.emplace(
+			std::async(
+				std::launch::async,
+				[bp](std::function<void(void)> callback) {			/* 写磁盘 */
+			int disk_addr = bp->b_blkno * BufferManager::BUFFER_SIZE;
+
+			{
+				std::lock_guard<std::mutex> lock(mtx_rw);				/* 加锁，使用文件流写文件 */
+				disk->seekp(disk_addr, std::ios::beg);
+				disk->write(reinterpret_cast<const char*>(bp->b_addr), BufferManager::BUFFER_SIZE);
+			}
 
 			callback();
 		},
-			[]() {														/* 使用回调函数模拟磁盘中断 */
+				[]() {														/* 使用回调函数模拟磁盘中断 */
 			DiskHandler();
-		});		
+		})
+		);	
+	}
+}
+
+void DiskDriver::TaskClear()
+{
+	{
+		std::lock_guard<std::mutex> lock_queue(mtx_queue);
+
+		for (;;) {
+			/* 队列为空或者队首的任务未完成，直接返回 */
+			if (tasks.empty() || tasks.front().wait_for(std::chrono::seconds(0)) == std::future_status::timeout)
+				return;
+
+			tasks.pop();
+		}
 	}
 }

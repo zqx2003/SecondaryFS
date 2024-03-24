@@ -1,4 +1,6 @@
 #pragma once
+#include <mutex>
+#include <condition_variable>
 
 class Buf {
 public:
@@ -30,4 +32,7 @@ public:
 	int		b_blkno;		/* 磁盘逻辑块号 */
 	int		b_error;		/* I/O出错时信息，暂未使用 */
 	int		b_resid;		/* I/O出错时尚未传送的字节数，暂未使用 */
+
+	std::mutex	b_mtx;				/* 缓存的互斥锁 */
+	std::condition_variable b_cv;	/* 缓存的条件变量 */
 };

@@ -1,8 +1,16 @@
 #pragma once
+#include <mutex>
+#include "../inc/BlockDevice.h"
 #include "../inc/Buf.h"
 #include "../inc/DeviceManager.h"
+#include "../inc/DiskDriver.h"
 
 class BufferManager {
+	friend class BlockDevice;
+	friend class DiskBlockDevice;
+
+	friend class DiskDriver;
+
 public:
 	static const int NBUF = 15;			/* 缓存控制块、缓冲区的数量 */
 	static const int BUFFER_SIZE = 512;	/* 缓冲区大小，以字节为单位 */
@@ -32,6 +40,8 @@ public:
 
 	Buf& GetBFreeList();				/* 获取自由缓存队列控制块Buf对象引用 */
 
+	int GetBufId(Buf* bp);				/* 获取缓存块的ID */
+
 private:
 	void NotAvail(Buf* bp);				/* 从自由队列中摘下指定的缓存控制块buf */
 	Buf* InCore(short adev, int blkno);	/* 检查指定字符块是否已在缓存中 */
@@ -42,4 +52,5 @@ private:
 	char Buffer[NBUF][BUFFER_SIZE];		/* 缓冲区数组 */
 
 	DeviceManager* m_DeviceManager;		/* 指向设别管理模块的全局对象 */
+	static std::recursive_mutex mtx_av;			/* 维护自由队列，I/O请求队列的锁 */
 };

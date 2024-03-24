@@ -28,8 +28,8 @@ public:
 	virtual void Start() = 0;
 
 public:
-	std::mutex mtx_tab;
 	Devtab* d_tab;
+	std::mutex mtx_dev;
 };
 
 class DiskBlockDevice : public BlockDevice {

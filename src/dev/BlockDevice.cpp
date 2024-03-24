@@ -71,35 +71,36 @@ int DiskBlockDevice::Strategy(Buf* bp)
 		/* 设置出错标志 */
 		bp->b_flags |= Buf::B_ERROR;
 
-		BufferManager bm = Kernel::Instance().GetBufferManager();
+		BufferManager& bm = Kernel::Instance().GetBufferManager();
 
 		/* 出错不执行I/O操作，调用IODone结束I/O */
 		bm.IODone(bp);
 		return 0;
 	}
 
-	/* 将bp加入I/O请求队列的队尾 */
-	bp->av_forw = nullptr;					/* 当前缓存的尾部没有缓存 */
+	bp->av_forw = nullptr;						/* 当前缓存的尾部没有缓存 */
+	{
+		std::lock_guard<std::recursive_mutex> lock(BufferManager::mtx_av);	/* I/O请求队列加锁 */
 
-	this->mtx_tab.lock();					/* 加锁 */
-	if (nullptr == this->d_tab->d_actf) {	/* 队列为空 */
-		this->d_tab->d_actf = bp;			/* 将队首指针直接指向该缓存 */
-	}
-	else {									/* 队列不为空 */
-		this->d_tab->d_actl->av_forw = bp;	/* 将当前队尾缓存的av_forw指向该缓存 */
-	}
-	this->d_tab->d_actl = bp;				/* 将队尾指针更新为当前缓存 */
+		if (nullptr == this->d_tab->d_actf) {	/* 队列为空 */
+			this->d_tab->d_actf = bp;			/* 将队首指针直接指向该缓存 */
+		}
+		else {									/* 队列不为空 */
+			this->d_tab->d_actl->av_forw = bp;	/* 将当前队尾缓存的av_forw指向该缓存 */
+		}
+		this->d_tab->d_actl = bp;				/* 将队尾指针更新为当前缓存 */
 
-	if (!this->d_tab->d_active) {
-		this->Start();
+		if (!this->d_tab->d_active) {
+			this->Start();
+		}
 	}
-	this->mtx_tab.unlock();					/* 解锁 */
 
 	return 0;
 }
 
 void DiskBlockDevice::Start()
 {
+	/* 内部不加锁，在外层函数Strategy()和DiskHandler()中加锁 */
 	Buf* bp = this->d_tab->d_actf;
 
 	if (nullptr == bp) {	/* I/O请求队列为空，立即返回 */
