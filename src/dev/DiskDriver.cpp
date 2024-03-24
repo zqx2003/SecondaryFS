@@ -37,7 +37,7 @@ void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 	for (int i = 0; i < spb.s_ninode; i++) {
 		spb.s_inode[i] = i + 8;	// 5个初始目录，1个shell文件，1个字符设备文件，以及0#Inode
 	}
-	spb.ilock = 0;
+	spb.s_ilock = 0;
 
 	spb.s_fmod = 0;
 	spb.s_ronly = 0;

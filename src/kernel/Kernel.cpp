@@ -18,7 +18,7 @@ FileSystem g_FileSystem;
 /*
 * 全局User
 */
-User g_user;
+User g_User;
 
 Kernel::Kernel()
 {
@@ -27,7 +27,7 @@ Kernel::Kernel()
 	this->m_FileManager = nullptr;
 	this->m_FileSystem = nullptr;
 
-	this->m_user = nullptr;	/* 模拟一个全局User */
+	this->m_User = nullptr;	/* 模拟一个全局User */
 }
 
 Kernel::~Kernel()
@@ -67,7 +67,7 @@ FileSystem& Kernel::GetFileSystem()
 
 User& Kernel::GetUser()
 {
-	return *(this->m_user);
+	return *(this->m_User);
 }
 
 void Kernel::InitBuffer()
@@ -100,4 +100,5 @@ void Kernel::InitFileSystem()
 
 void Kernel::InitUser()
 {
+	this->m_User = &g_User;
 }

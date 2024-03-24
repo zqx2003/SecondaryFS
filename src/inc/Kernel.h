@@ -32,5 +32,5 @@ private:
 	FileManager* m_FileManager;
 	FileSystem* m_FileSystem;
 
-	User* m_user;	/* 模拟一个全局User */
+	User* m_User;	/* 模拟一个全局User */
 };
