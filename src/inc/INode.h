@@ -92,16 +92,6 @@ public:
 	/*
 	 * @comment 对Pipe或者Inode解锁，并且唤醒因等待锁而睡眠的进程
 	 */
-	void Prele();
-
-	/*
-	 * @comment 对Pipe上锁，如果Pipe已经被上锁，则增设IWANT标志并睡眠等待直至解锁
-	 */
-	void Plock();
-
-	/*
-	 * @comment 对Pipe或者Inode解锁，并且唤醒因等待锁而睡眠的进程
-	 */
 	void NFrele();
 
 	/*
@@ -136,6 +126,9 @@ public:
 	int			i_addr[BNUM];	/* 用于文件逻辑块号和物理块号转换的基本索引表 */
 
 	int			i_lastr;		/* 存放最近一次读取文件的逻辑块号，用于判断是否需要预读，暂未使用 */
+
+	std::mutex	i_mtx;			/* Inode锁 */
+	std::condition_variable i_cv;	/* Inode条件变量 */
 };
 
 /*
