@@ -11,6 +11,10 @@ using cmdFuncPtr = void(*)(const std::vector<std::string>&);
 
 void cmdExec(std::vector<std::string>& cmdTokens, const std::map<std::string, cmdFuncPtr>& cmdMap)
 {
+	if (cmdTokens.empty()) {
+		return;
+	}
+
 	auto it = cmdMap.find(cmdTokens[0]);
 	if (it == cmdMap.end()) {
 		std::cout << "Invalid command!" << std::endl;
@@ -54,7 +58,7 @@ int main()
 	int loop = 1;
 	while (loop) {
 		std::string cmd;
-		std::cout << "[" << "@" << "]# ";
+		std::cout << "[" << "user" << "@SecondFS " << "~]# ";
 		std::getline(std::cin, cmd);
 
 		std::string token;

@@ -1,6 +1,12 @@
 #pragma once
 #include <string>
 #include <vector>
+struct option {
+	char* shortopt;
+	char* longopt;
+	int hasarg;
+	int val;
+};
 
 void Ls		(const std::vector<std::string>& cmdTokens);
 void Fopen	(const std::vector<std::string>& cmdTokens);

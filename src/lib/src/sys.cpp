@@ -5,3 +5,8 @@ void Format(const char* disk_file_path, int isize, int fsize)
 {
 	DiskDriver::DiskFormat(disk_file_path, isize, fsize);
 }
+
+void ls(const char* dir_path)
+{
+}
+

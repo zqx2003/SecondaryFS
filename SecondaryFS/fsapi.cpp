@@ -1,12 +1,22 @@
 #include <iostream>
 #include "fsapi.h"
+#include "../src/inc/Kernel.h"
 
 void Ls(const std::vector<std::string>& cmdTokens)
 {
-	if (cmdTokens.size() != 2) {
-		std::cout << "ls error: Incorrect number of parameters!" << std::endl;
+	/* 解析命令行参数 */
+	std::string dirPath = ".";
+	if (cmdTokens.size() == 2) {
+		dirPath = cmdTokens[1];
+	}
+	else if (cmdTokens.size() > 2) {
+		std::cout << "ls error: Incorrect number pf parameters!" << std::endl;
 		return;
 	}
+
+	User& u = Kernel::Instance().GetUser();
+	
+
 	std::cout << "exec ls" << std::endl;
 }
 
@@ -125,11 +135,20 @@ void Exit(const std::vector<std::string>& cmdTokens)
 		return;
 	}
 
+	/* 关闭所有文件 */
+
+	/* 缓存写回磁盘 */
+
 	std::cout << "exec exit" << std::endl;
 }
 
 void Help(const std::vector<std::string>& cmdTokens)
 {
+	if (cmdTokens.size() > 1) {
+		std::cout << "help error: Incorrect number of parameters!" << std::endl;
+		return;
+	}
+
 	std::string usage =
 		"1.ls\n"
 		"	Usage:ls\n"
