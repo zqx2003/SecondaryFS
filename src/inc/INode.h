@@ -90,6 +90,16 @@ public:
 	void ITrunc();
 
 	/*
+ * @comment 对Pipe或者Inode解锁，并且唤醒因等待锁而睡眠的进程
+ */
+	void Prele();
+
+	/*
+	 * @comment 对Pipe上锁，如果Pipe已经被上锁，则增设IWANT标志并睡眠等待直至解锁
+	 */
+	void Plock();
+
+	/*
 	 * @comment 对Pipe或者Inode解锁，并且唤醒因等待锁而睡眠的进程
 	 */
 	void NFrele();

@@ -247,7 +247,7 @@ void testFileSystem()
 	BufferManager& bm = Kernel::Instance().GetBufferManager();
 
 	/* 测试数据块的申请与释放 */
-	if (0) {
+	if (1) {
 		std::cout << "测试申请与释放数据块" << std::endl;
 
 		//std::stack<int> blknos;

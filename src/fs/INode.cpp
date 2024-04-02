@@ -619,6 +619,30 @@ void Inode::ITrunc()
 	this->i_nlink = 1;
 }
 
+void Inode::Prele()
+{
+	/* 解锁pipe或Inode,并且唤醒相应进程 */
+	this->i_flag &= ~Inode::ILOCK;
+
+	if (this->i_flag & Inode::IWANT)
+	{
+		this->i_flag &= ~Inode::IWANT;
+		this->i_cv.notify_all();
+	}
+}
+
+void Inode::Plock()
+{
+	while (this->i_flag & Inode::ILOCK)
+	{
+		this->i_flag |= Inode::IWANT;
+
+		std::unique_lock<std::mutex> i_lock(this->i_mtx);
+		this->i_cv.wait(i_lock, [this] {return !(this->i_flag & Inode::ILOCK); });
+	}
+	this->i_flag |= Inode::ILOCK;
+}
+
 void Inode::NFrele()
 {
 	/* 解锁pipe或Inode,并且唤醒相应进程 */

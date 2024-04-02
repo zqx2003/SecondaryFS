@@ -23,16 +23,16 @@ void cmdExec(std::vector<std::string>& cmdTokens, const std::map<std::string, cm
 
 int main()
 {
-	DiskDriver::Open();
+	//DiskDriver::Open();
 
-	Kernel::Instance().Initialize();
-	Kernel::Instance().GetFileSystem().LoadSuperBlock();
-	std::cout << "Unix V6++ FileSystem Loaded......OK" << std::endl;;
+	//Kernel::Instance().Initialize();
+	//Kernel::Instance().GetFileSystem().LoadSuperBlock();
+	//std::cout << "Unix V6++ FileSystem Loaded......OK" << std::endl;;
 
-	test();
+	//test();
 
-	DiskDriver::Close();
-	return 0;
+	//DiskDriver::Close();
+	//return 0;
 
 	const std::map<std::string, cmdFuncPtr> cmdMap = {
 		{"ls",		Ls},
