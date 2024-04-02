@@ -49,8 +49,5 @@ void User::Pwd()
 
 bool User::SUser()
 {
-	if (0 == this->u_uid)
-	{
-		return true;
-	}
+	return 0 == this->u_uid;
 }

@@ -78,7 +78,7 @@ void FileSystem::LoadSuperBlock()
 	g_spb.s_flock = 0;
 	g_spb.s_ilock = 0;
 	g_spb.s_ronly = 0;
-	//g_spb.s_time = Time::time;
+	g_spb.s_time = static_cast<int>(std::time(nullptr));
 }
 
 SuperBlock* FileSystem::GetFS(short dev)
@@ -137,7 +137,7 @@ void FileSystem::Update()
 			/* 清SuperBlock修改标志 */
 			sb->s_fmod = 0;
 			///* 写入SuperBlock最后存访时间 */
-			//sb->s_time = Time::time;
+			sb->s_time = static_cast<int>(std::time(nullptr));
 
 			/*
 			 * 为将要写回到磁盘上去的SuperBlock申请一块缓存，由于缓存块大小为512字节，
@@ -250,7 +250,7 @@ Inode* FileSystem::IAlloc(short dev)
 			}
 		}
 		/* 解除对空闲外存Inode索引表的锁，唤醒因为等待锁而睡眠的进程 */
-		//sb->s_ilock = 0;
+		sb->s_ilock = 0;
 		//Kernel::Instance().GetProcessManager().WakeUpAll((unsigned long)&sb->s_ilock);
 
 		/* 如果在磁盘上没有搜索到任何可用外存Inode，返回nullptr */
@@ -358,82 +358,7 @@ Buf* FileSystem::Alloc(short dev)
 	 */
 	if (0 == blkno)
 	{
-		sb->s_nfree = 0;
-		int blkno;	/* 分配到的空闲磁盘块编号 */
-		SuperBlock* sb;
-		Buf* pBuf;
-		User& u = Kernel::Instance().GetUser();
-
-		/* 获取SuperBlock对象的内存副本 */
-		sb = this->GetFS(dev);
-
-		/*
-		 * 如果空闲磁盘块索引表正在被上锁，表明有其它进程
-		 * 正在操作空闲磁盘块索引表，因而对其上锁。这通常
-		 * 是由于其余进程调用Free()或Alloc()造成的。
-		 */
-		//while (sb->s_flock)
-		//{
-		//	/* 进入睡眠直到获得该锁才继续 */
-		//	u.u_procp->Sleep((unsigned long)&sb->s_flock, ProcessManager::PINOD);
-		//}
-
-		/* 从索引表“栈顶”获取空闲磁盘块编号 */
-		blkno = sb->s_free[--sb->s_nfree];
-
-		/*
-		 * 若获取磁盘块编号为零，则表示已分配尽所有的空闲磁盘块。
-		 * 或者分配到的空闲磁盘块编号不属于数据盘块区域中(由BadBlock()检查)，
-		 * 都意味着分配空闲磁盘块操作失败。
-		 */
-		if (0 == blkno)
-		{
-			sb->s_nfree = 0;
-			//Diagnose::Write("No Space On %d !\n", dev);
-			//u.u_error = User::ENOSPC;
-			return nullptr;
-		}
-		if (this->BadBlock(sb, dev, blkno))
-		{
-			return nullptr;
-		}
-
-		/*
-		 * 栈已空，新分配到空闲磁盘块中记录了下一组空闲磁盘块的编号,
-		 * 将下一组空闲磁盘块的编号读入SuperBlock的空闲磁盘块索引表s_free[100]中。
-		 */
-		if (sb->s_nfree <= 0)
-		{
-			/*
-			 * 此处加锁，因为以下要进行读盘操作，有可能发生进程切换，
-			 * 新上台的进程可能对SuperBlock的空闲盘块索引表访问，会导致不一致性。
-			 */
-			sb->s_flock++;
-
-			/* 读入该空闲磁盘块 */
-			pBuf = this->m_BufferManager->Bread(dev, blkno);
-
-			/* 从该磁盘块的0字节开始记录，共占据4(s_nfree)+400(s_free[100])个字节 */
-			int* p = (int*)pBuf->b_addr;
-
-			/* 首先读出空闲盘块数s_nfree */
-			sb->s_nfree = *p++;
-
-			/* 读取缓存中后续位置的数据，写入到SuperBlock空闲盘块索引表s_free[100]中 */
-			Utility::DWordCopy(p, sb->s_free, 100);
-
-			/* 缓存使用完毕，释放以便被其它进程使用 */
-			this->m_BufferManager->Brelse(pBuf);
-
-			///* 解除对空闲磁盘块索引表的锁，唤醒因为等待锁而睡眠的进程 */
-			//sb->s_flock = 0;
-			//Kernel::Instance().GetProcessManager().WakeUpAll((unsigned long)&sb->s_flock);
-		}
-
-		/* 普通情况下成功分配到一空闲磁盘块 */
-		pBuf = this->m_BufferManager->GetBlk(dev, blkno);	/* 为该磁盘块申请缓存 */
-		this->m_BufferManager->ClrBuf(pBuf);	/* 清空缓存中的数据 */
-		sb->s_fmod = 1;	/* 设置SuperBlock被修改标志 */
+		sb->s_nfree = 1;
 
 		return nullptr;
 	}
@@ -470,7 +395,7 @@ Buf* FileSystem::Alloc(short dev)
 		this->m_BufferManager->Brelse(pBuf);
 
 		///* 解除对空闲磁盘块索引表的锁，唤醒因为等待锁而睡眠的进程 */
-		//sb->s_flock = 0;
+		sb->s_flock = 0;
 		//Kernel::Instance().GetProcessManager().WakeUpAll((unsigned long)&sb->s_flock);
 	}
 
@@ -542,7 +467,7 @@ void FileSystem::Free(short dev, int blkno)
 		/* 将存放空闲盘块索引表的“当前释放盘块”写入磁盘，即实现了空闲盘块记录空闲盘块号的目标 */
 		this->m_BufferManager->Bwrite(pBuf);
 
-		//sb->s_flock = 0;
+		sb->s_flock = 0;
 		//Kernel::Instance().GetProcessManager().WakeUpAll((unsigned long)&sb->s_flock);
 	}
 	sb->s_free[sb->s_nfree++] = blkno;	/* SuperBlock中记录下当前释放盘块号 */

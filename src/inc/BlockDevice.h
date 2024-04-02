@@ -28,6 +28,13 @@ public:
 	virtual void Start() = 0;
 
 public:
+	int d_super_block_sector_number = 0;/* 定义SuperBlock位于磁盘上的扇区号，占据0, 1两个扇区。 */
+	int d_inode_zone_start_sector = 0;
+	int d_inode_zone_size = 0;			/* 磁盘上外存Inode区占据的扇区数 */
+	int d_data_zone_start_sector = 0;	/* 数据区的起始扇区号 */
+	int d_data_zone_end_sector = 0;		/* 数据区的结束扇区号 */
+	int d_data_zone_size = 0;			/* 数据区占据的扇区数量 */
+
 	Devtab* d_tab;
 	std::mutex mtx_dev;
 };

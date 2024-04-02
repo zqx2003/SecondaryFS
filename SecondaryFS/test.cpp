@@ -3,6 +3,10 @@
 #include <iomanip>
 #include <cstring>
 #include <future>
+#include <vector>
+#include <stack>
+#include <queue>
+#include <random>
 #include "test.h"
 #include "../src/inc/BufferManager.h"
 #include "../src/inc/DiskDriver.h"
@@ -38,8 +42,6 @@ void testDiskDriver()
 		buffer2[i] = 'a';
 	}
 
-	DiskDriver::Open();
-
 	/* 读测试 */
 	buf.b_flags |= Buf::B_READ;
 	buf.b_blkno = 0;
@@ -65,7 +67,6 @@ void testDiskDriver()
 	std::async(std::launch::async, [&buf]() {	/* 写新数据 */
 		DiskDriver::DevStart(&buf);
 	}).wait();
-	DiskDriver::Close();
 
 	std::cout << "写入测试" << std::endl;
 	std::cout << "请打开img文件查看内容，按回车继续" << std::endl;
@@ -73,15 +74,12 @@ void testDiskDriver()
 	while ((ch = getchar()) != '\n')
 		;
 
-	DiskDriver::Open();
 	buf.b_flags &= ~Buf::B_READ;
 	buf.b_blkno = 127;
 	buf.b_addr = buffer1;
 	std::async(std::launch::async, [&buf]() {	/* 恢复 */
 		DiskDriver::DevStart(&buf);
 	}).wait();
-
-	DiskDriver::Close();
 }
 
 void testBuffer()
@@ -171,7 +169,6 @@ void testBuffer()
 	/* 测试同步读 */
 	if (0) {
 		std::cout << "测试同步读" << std::endl;
-		DiskDriver::Open();
 
 		short dev = Kernel::Instance().GetDeviceManager().ROOTDEV;
 		std::cout << "同步读开始" << std::endl;
@@ -179,15 +176,12 @@ void testBuffer()
 		std::cout << "同步读完成" << std::endl;
 
 		showBlock(bp->b_addr);
-
-		DiskDriver::Close();
 		std::cout << "测试同步读完成" << std::endl << std::endl;
 	}
 
 	/* 测试预读 */
 	if (0) {
 		std::cout << "测试预读" << std::endl;
-		DiskDriver::Open();
 		
 		short adev = Kernel::Instance().GetDeviceManager().ROOTDEV;
 		std::cout << "预读开始" << std::endl;
@@ -201,15 +195,12 @@ void testBuffer()
 
 		std::cout << "预读块" << std::endl;
 		showBlock(abp->b_addr);
-
-		DiskDriver::Close();
 		std::cout << "测试预读完成" << std::endl << std::endl;
 	}
 
 	/* 测试异步写 */
 	if (0) {
 		std::cout << "测试异步写" << std::endl;
-		DiskDriver::Open();
 		short dev = Kernel::Instance().GetDeviceManager().ROOTDEV;
 
 		Buf* bp = bm.GetBlk(dev, 127);
@@ -227,41 +218,89 @@ void testBuffer()
 		std::cout << "异步写完成" << std::endl;
 		
 		showBlock(bp->b_addr);
-
-		DiskDriver::Close();
 		std::cout << "测试异步写完成" << std::endl << std::endl;
 	}
 
 	/* 测试延迟写 */
 	if (0) {
 		std::cout << "测试延迟写" << std::endl;
-		DiskDriver::Open();
-
-		DiskDriver::Close();
 		std::cout << "测试延迟写完成" << std::endl << std::endl;
 	}
 
 	/* 测试清空缓冲区 */
 	if (0) {
 		std::cout << "测试清空缓冲区" << std::endl;
-		DiskDriver::Open();
-
-		DiskDriver::Close();
 		std::cout << "测试清空缓冲区完成" << std::endl << std::endl;
 	}
 
 	/* 测试刷新缓冲区 */
 	if (0) {
 		std::cout << "测试刷新缓冲区" << std::endl;
-		DiskDriver::Open();
-
-		DiskDriver::Close();
 		std::cout << "测试刷新缓冲区完成" << std::endl << std::endl;
+	}
+}
+
+void testFileSystem()
+{
+	short dev = DeviceManager::ROOTDEV;
+	FileSystem& fs = Kernel::Instance().GetFileSystem();
+	BufferManager& bm = Kernel::Instance().GetBufferManager();
+
+	/* 测试数据块的申请与释放 */
+	if (0) {
+		std::cout << "测试申请与释放数据块" << std::endl;
+
+		//std::stack<int> blknos;
+		//std::queue<int> blknos;
+		std::vector<int> blknos;
+
+		std::cout << "申请数据块开始" << std::endl;
+		for (;;) {
+			Buf* buf = fs.Alloc(dev);
+			if (nullptr == buf) {
+				break;
+			}
+
+			//blknos.push(buf->b_blkno);
+			blknos.push_back(buf->b_blkno);
+			if (blknos.size() != 0 && blknos.size() % 10000 == 0) {
+				std::cout << "已申请数据块数量：" << blknos.size() << std::endl;
+			}
+			//std::cout << "申请数据块号：" << buf->b_blkno << std::endl;
+			bm.Brelse(buf);
+
+			if (blknos.size() > 65536) {
+				std::cout << "Error" << std::endl;
+				break;
+			}
+		}
+		std::cout << "申请数据块完成" << std::endl;
+		std::cout << "总申请数据块数量：" << blknos.size() << std::endl << std::endl;
+		
+		std::default_random_engine rng(std::random_device{}());
+		std::shuffle(blknos.begin(), blknos.end(), rng);
+
+		std::cout << "释放数据块开始" << std::endl;
+		while (!blknos.empty()) {
+			//fs.Free(dev, blknos.top());
+			//fs.Free(dev, blknos.front());
+			fs.Free(dev, blknos.back());
+			//blknos.pop();
+			blknos.pop_back();
+
+			if (blknos.size() % 10000 == 0) {
+				std::cout << "剩余数据块数量：" << blknos.size() << std::endl;
+			}
+		}
+		std::cout << "释放数据块完成" << std::endl;
+		std::cout << "测试申请与释放数据块完成" << std::endl << std::endl;
+		fs.Update();
 	}
 }
 
 void test()
 {
 	//testDiskDriver();
-	testBuffer();
+	//testBuffer();
+	testFileSystem();
 }

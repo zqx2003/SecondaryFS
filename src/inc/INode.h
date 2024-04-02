@@ -116,8 +116,8 @@ public:
 	int			i_count;		/* 引用计数 */
 	int			i_nlink;		/* 文件链接计数，即该文件在目录树中不同路径名的数量 */
 
-	short		i_dev;			/* 外存inode所在存储设备的设备号，暂未使用 */
-	int			i_number;		/* 外存inode区中的编号，暂未使用 */
+	short		i_dev;			/* 外存inode所在存储设备的设备号 */
+	int			i_number;		/* 外存inode区中的编号 */
 
 	short		i_uid;			/* 文件所有者用户数 */
 	short		i_gid;			/* 文件所有者组标识数，暂未使用 */

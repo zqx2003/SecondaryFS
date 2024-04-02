@@ -27,9 +27,9 @@ void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 	spb.s_fsize = fsize;
 	
 	int block_base = spb.s_isize / FileSystem::INODE_NUMBER_PER_SECTOR + 2;	// 文件区起始块号
-	spb.s_nfree = (spb.s_fsize - block_base - 14) % 100;	// 5个初始目录各1个块，1个shell文件占9个块
+	spb.s_nfree = 1 + (spb.s_fsize - block_base - 14) % 100;	// 5个初始目录各1个块，1个shell文件占9个块，有1个块号为0的块当做栈底
 	for (int i = 0; i < spb.s_nfree; i++) {
-		spb.s_free[i] = block_base + (spb.s_fsize - block_base - 14) / 100 * 100 + i;
+		spb.s_free[i] = spb.s_fsize - spb.s_nfree - 14 + i;
 	}
 	spb.s_flock = 0;
 
@@ -155,20 +155,23 @@ void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 	}
 
 	/* 格式化文件区 */
+	int nfree = 1;
+	int free[100] = { 0 };
 	for (int i = block_base; i < spb.s_fsize - 14; i++) {
 		char empty_block[Inode::BLOCK_SIZE] = { '\0' };
-		if (i != block_base && (i - block_base) % 100 == 0) {
-			int& nfree = *reinterpret_cast<int*>(empty_block);
-			int(&free)[100] = *reinterpret_cast<int(*)[100]>(empty_block + sizeof(nfree));
+		if (nfree >= 100) {
+			int* p = reinterpret_cast<int*>(empty_block);
+			memcpy(p, &nfree, sizeof(nfree));
+			memcpy(p + 1, free, sizeof(free));
 
-			nfree = 100;
-			for (int j = 0; j < 100; j++) {
-				free[j] = i - 100 + j;
-			}
+			nfree = 0;
+			memset(free, 0, sizeof(free));
 		}
-
+		
+		free[nfree++] = i;
 		fout.write(empty_block, Inode::BLOCK_SIZE);
 	}
+
 	fout.write(reinterpret_cast<const char*>(rootDir), Inode::BLOCK_SIZE);
 	fout.write(reinterpret_cast<const char*>(binDir), Inode::BLOCK_SIZE);
 	fout.write(reinterpret_cast<const char*>(etcDir), Inode::BLOCK_SIZE);
@@ -243,10 +246,9 @@ void DiskDriver::DevStart(Buf* bp)
 			std::async(
 				std::launch::async,
 				[bp](std::function<void(void)> callback) {			/* 读磁盘 */
-			int disk_addr = bp->b_blkno * BufferManager::BUFFER_SIZE;
-
 			{
 				std::lock_guard<std::mutex> lock(mtx_rw);				/* 加锁，使用文件流读文件必须互斥 */
+				int disk_addr = bp->b_blkno * BufferManager::BUFFER_SIZE;
 				disk->seekg(disk_addr, std::ios::beg);
 				disk->read(reinterpret_cast<char*>(bp->b_addr), BufferManager::BUFFER_SIZE);
 			}
@@ -265,10 +267,9 @@ void DiskDriver::DevStart(Buf* bp)
 			std::async(
 				std::launch::async,
 				[bp](std::function<void(void)> callback) {			/* 写磁盘 */
-			int disk_addr = bp->b_blkno * BufferManager::BUFFER_SIZE;
-
 			{
 				std::lock_guard<std::mutex> lock(mtx_rw);				/* 加锁，使用文件流写文件 */
+				int disk_addr = bp->b_blkno * BufferManager::BUFFER_SIZE;
 				disk->seekp(disk_addr, std::ios::beg);
 				disk->write(reinterpret_cast<const char*>(bp->b_addr), BufferManager::BUFFER_SIZE);
 			}

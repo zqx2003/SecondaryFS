@@ -23,9 +23,15 @@ void cmdExec(std::vector<std::string>& cmdTokens, const std::map<std::string, cm
 
 int main()
 {
+	DiskDriver::Open();
+
 	Kernel::Instance().Initialize();
+	Kernel::Instance().GetFileSystem().LoadSuperBlock();
+	std::cout << "Unix V6++ FileSystem Loaded......OK" << std::endl;;
 
 	test();
+
+	DiskDriver::Close();
 	return 0;
 
 	const std::map<std::string, cmdFuncPtr> cmdMap = {
