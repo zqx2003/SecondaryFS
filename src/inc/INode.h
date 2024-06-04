@@ -120,7 +120,7 @@ public:
 
 	/* Members */
 public:
-	unsigned	i_flag;			/* 状态标志位，暂未使用 */
+	unsigned	i_flag;			/* 状态标志位 */
 	unsigned	i_mode;			/* 文件工作方式信息 */
 
 	int			i_count;		/* 引用计数 */

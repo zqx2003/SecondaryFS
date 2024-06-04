@@ -20,5 +20,6 @@ void Fdelete(const std::vector<std::string>& cmdTokens);
 void Cd		(const std::vector<std::string>& cmdTokens);
 void Fin	(const std::vector<std::string>& cmdTokens);
 void Fout	(const std::vector<std::string>& cmdTokens);
+void Fdls	(const std::vector<std::string>& cmdTokens);
 void Exit	(const std::vector<std::string>& cmdTokens);
 void Help	(const std::vector<std::string>& cmdTokens);

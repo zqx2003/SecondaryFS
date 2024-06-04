@@ -41,6 +41,7 @@ Kernel& Kernel::Instance()
 
 void Kernel::Initialize()
 {
+	InitUser();
 	InitBuffer();
 	InitFileSystem();
 }

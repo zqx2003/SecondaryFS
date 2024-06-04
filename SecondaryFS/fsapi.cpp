@@ -1,6 +1,7 @@
 #include <iostream>
 #include "fsapi.h"
 #include "../src/inc/Kernel.h"
+#include "../src/lib/inc/sys.h"
 
 void Ls(const std::vector<std::string>& cmdTokens)
 {
@@ -15,6 +16,8 @@ void Ls(const std::vector<std::string>& cmdTokens)
 	}
 
 	User& u = Kernel::Instance().GetUser();
+	unsigned fd = _fopen(dirPath.c_str(), FileManager::DirectorySearchMode::OPEN);
+
 	
 
 	std::cout << "exec ls" << std::endl;
@@ -22,11 +25,24 @@ void Ls(const std::vector<std::string>& cmdTokens)
 
 void Fopen(const std::vector<std::string>& cmdTokens)
 {
+	// 检查参数
 	if (cmdTokens.size() != 2) {
 		std::cout << "fopen error: Incorrect number of parameters!" << std::endl;
 		return;
 	}
-	std::cout << "exec fopen" << std::endl;
+
+	User& u = Kernel::Instance().GetUser();
+
+	// 执行系统调用
+	const char* file_path = cmdTokens[1].c_str();
+	int fd = _fopen(file_path, FileManager::DirectorySearchMode::OPEN);
+	
+	if (u.u_error != User::_NOERROR) {
+		std::cout << "文件[" << file_path << "]打开失败" << std::endl;
+		u.u_error = User::_NOERROR;
+		return;
+	}
+	std::cout << "fd : " << fd << std::endl;
 }
 
 void Fclose(const std::vector<std::string>& cmdTokens)
@@ -126,6 +142,24 @@ void Fout(const std::vector<std::string>& cmdTokens)
 		return;
 	}
 	std::cout << "exec fout" << std::endl;
+}
+
+void Fdls(const std::vector<std::string>& cmdTokens)
+{
+	if (cmdTokens.size() != 1) {
+		std::cout << "exit error: Incorrect number of parameters!" << std::endl;
+		return;
+	}
+	
+	User& u = Kernel::Instance().GetUser();
+	
+	std::cout << "fd\toffset\ti_number" << std::endl;
+	for (int fd = 0; fd < OpenFiles::NOFILES; fd++) {
+		File* f = u.u_ofiles.GetF(fd);
+		if (f) {
+			std::cout << fd << "\t" << f->f_offset << "\t" << f->f_inode->i_number << std::endl;
+		}
+	}
 }
 
 void Exit(const std::vector<std::string>& cmdTokens)

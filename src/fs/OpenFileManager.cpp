@@ -14,15 +14,15 @@ OpenFileTable::~OpenFileTable()
 {
 }
 
-File* OpenFileTable::FAlloc()
+File *OpenFileTable::FAlloc()
 {
 	int fd;
-	User& u = Kernel::Instance().GetUser();
+	User &u = Kernel::Instance().GetUser();
 
 	/* 在进程打开文件描述符表中获取一个空闲项 */
 	fd = u.u_ofiles.AllocFreeSlot();
 
-	if (fd < 0)	/* 如果寻找空闲项失败 */
+	if (fd < 0) /* 如果寻找空闲项失败 */
 	{
 		return nullptr;
 	}
@@ -43,24 +43,26 @@ File* OpenFileTable::FAlloc()
 	}
 
 	std::cout << "No Free File Struct" << std::endl;
-	//Diagnose::Write("No Free File Struct\n");
-	//u.u_error = User::ENFILE;
+	// Diagnose::Write("No Free File Struct\n");
+	u.u_error = User::_ENFILE;
 	return nullptr;
 }
 
-void OpenFileTable::CloseF(File* pFile)
+void OpenFileTable::CloseF(File *pFile)
 {
-	//Inode* pNode;
-	//ProcessManager& procMgr = Kernel::Instance().GetProcessManager();
+	Inode *pNode;
+	// ProcessManager& procMgr = Kernel::Instance().GetProcessManager();
 
-	///* 管道类型 */
-	//if (pFile->f_flag & File::FPIPE)
-	//{
-	//	pNode = pFile->f_inode;
-	//	pNode->i_mode &= ~(Inode::IREAD | Inode::IWRITE);
-	//	procMgr.WakeUpAll((unsigned long)(pNode + 1));
-	//	procMgr.WakeUpAll((unsigned long)(pNode + 2));
-	//}
+	/* 管道类型 */
+	if (pFile->f_flag & File::FPIPE)
+	{
+		pNode = pFile->f_inode;
+		pNode->i_mode &= ~(Inode::IREAD | Inode::IWRITE);
+		(pNode + 1)->i_cv.notify_all();
+		(pNode + 2)->i_cv.notify_all();
+		// procMgr.WakeUpAll((unsigned long)(pNode + 1));
+		// procMgr.WakeUpAll((unsigned long)(pNode + 2));
+	}
 
 	if (pFile->f_count <= 1)
 	{
@@ -94,16 +96,16 @@ void InodeTable::Initialize()
 	this->m_FileSystem = &Kernel::Instance().GetFileSystem();
 }
 
-Inode* InodeTable::IGet(short dev, int inumber)
+Inode *InodeTable::IGet(short dev, int inumber)
 {
-	Inode* pInode;
-	User& u = Kernel::Instance().GetUser();
+	Inode *pInode;
+	User &u = Kernel::Instance().GetUser();
 
 	while (true)
 	{
 		/* 检查指定设备dev中编号为inumber的外存Inode是否有内存拷贝 */
 		int index = this->IsLoaded(dev, inumber);
-		if (index >= 0)	/* 找到内存拷贝 */
+		if (index >= 0) /* 找到内存拷贝 */
 		{
 			pInode = &(this->m_Inode[index]);
 			/* 如果该内存Inode被上锁 */
@@ -113,7 +115,8 @@ Inode* InodeTable::IGet(short dev, int inumber)
 				pInode->i_flag |= Inode::IWANT;
 
 				std::unique_lock<std::mutex> i_lock(pInode->i_mtx);
-				pInode->i_cv.wait(i_lock, [&pInode] {return !(pInode->i_flag & Inode::ILOCK); });
+				pInode->i_cv.wait(i_lock, [&pInode]
+													{ return !(pInode->i_flag & Inode::ILOCK); });
 
 				/* 回到while循环，需要重新搜索，因为该内存Inode可能已经失效 */
 				continue;
@@ -122,11 +125,11 @@ Inode* InodeTable::IGet(short dev, int inumber)
 			/* 如果该内存Inode用于连接子文件系统，查找该Inode对应的Mount装配块 */
 			if (pInode->i_flag & Inode::IMOUNT)
 			{
-				Mount* pMount = this->m_FileSystem->GetMount(pInode);
+				Mount *pMount = this->m_FileSystem->GetMount(pInode);
 				if (nullptr == pMount)
 				{
 					/* 没有找到 */
-					//Utility::Panic("No Mount Tab...");
+					// Utility::Panic("No Mount Tab...");
 					std::cout << "No Mount Tab..." << std::endl;
 					exit(-1);
 				}
@@ -148,7 +151,7 @@ Inode* InodeTable::IGet(short dev, int inumber)
 			pInode->i_flag |= Inode::ILOCK;
 			return pInode;
 		}
-		else	/* 没有Inode的内存拷贝，则分配一个空闲内存Inode */
+		else /* 没有Inode的内存拷贝，则分配一个空闲内存Inode */
 		{
 			pInode = this->GetFreeInode();
 			/* 若内存Inode表已满，分配空闲Inode失败 */
@@ -157,7 +160,7 @@ Inode* InodeTable::IGet(short dev, int inumber)
 				std::cout << "Inode Table Overflow !" << std::endl;
 				return nullptr;
 			}
-			else	/* 分配空闲Inode成功，将外存Inode读入新分配的内存Inode */
+			else /* 分配空闲Inode成功，将外存Inode读入新分配的内存Inode */
 			{
 				/* 设置新的设备号、外存Inode编号，增加引用计数，对索引节点上锁 */
 				pInode->i_dev = dev;
@@ -166,9 +169,9 @@ Inode* InodeTable::IGet(short dev, int inumber)
 				pInode->i_count++;
 				pInode->i_lastr = -1;
 
-				BufferManager& bm = Kernel::Instance().GetBufferManager();
+				BufferManager &bm = Kernel::Instance().GetBufferManager();
 				/* 将该外存Inode读入缓冲区 */
-				Buf* pBuf = bm.Bread(dev, FileSystem::INODE_ZONE_START_SECTOR + inumber / FileSystem::INODE_NUMBER_PER_SECTOR);
+				Buf *pBuf = bm.Bread(dev, FileSystem::INODE_ZONE_START_SECTOR + inumber / FileSystem::INODE_NUMBER_PER_SECTOR);
 
 				/* 如果发生I/O错误 */
 				if (pBuf->b_flags & Buf::B_ERROR)
@@ -188,10 +191,10 @@ Inode* InodeTable::IGet(short dev, int inumber)
 			}
 		}
 	}
-	return nullptr;	/* GCC likes it! */
+	return nullptr; /* GCC likes it! */
 }
 
-void InodeTable::IPut(Inode* pNode)
+void InodeTable::IPut(Inode *pNode)
 {
 	/* 当前进程为引用该内存Inode的唯一进程，且准备释放该内存Inode */
 	if (pNode->i_count == 1)
@@ -216,7 +219,7 @@ void InodeTable::IPut(Inode* pNode)
 		pNode->IUpdate(static_cast<int>(std::time(nullptr)));
 
 		///* 解锁内存Inode，并且唤醒等待进程 */
-		//pNode->Prele();
+		pNode->Prele();
 		/* 清除内存Inode的所有标志位 */
 		pNode->i_flag = 0;
 		/* 这是内存inode空闲的标志之一，另一个是i_count == 0 */
@@ -225,7 +228,7 @@ void InodeTable::IPut(Inode* pNode)
 
 	/* 减少内存Inode的引用计数，唤醒等待进程 */
 	pNode->i_count--;
-	//pNode->Prele();
+	pNode->Prele();
 }
 
 void InodeTable::UpdateInodeTable()
@@ -243,7 +246,7 @@ void InodeTable::UpdateInodeTable()
 			this->m_Inode[i].IUpdate(static_cast<int>(std::time(nullptr)));
 
 			///* 对内存Inode解锁 */
-			//this->m_Inode[i].Prele();
+			this->m_Inode[i].Prele();
 		}
 	}
 }
@@ -261,7 +264,7 @@ int InodeTable::IsLoaded(short dev, int inumber)
 	return -1;
 }
 
-Inode* InodeTable::GetFreeInode()
+Inode *InodeTable::GetFreeInode()
 {
 	for (int i = 0; i < InodeTable::NINODE; i++)
 	{
@@ -271,5 +274,5 @@ Inode* InodeTable::GetFreeInode()
 			return &(this->m_Inode[i]);
 		}
 	}
-	return nullptr;	/* 寻找失败 */
+	return nullptr; /* 寻找失败 */
 }

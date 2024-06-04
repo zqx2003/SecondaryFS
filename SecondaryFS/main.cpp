@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include "../src/inc/Kernel.h"
+#include "../src/inc/Utility.h"
 #include "fsapi.h"
 #include "test.h"
 
@@ -27,11 +28,23 @@ void cmdExec(std::vector<std::string>& cmdTokens, const std::map<std::string, cm
 
 int main()
 {
-	//DiskDriver::Open();
+	// 启动磁盘驱动
+	DiskDriver::Open();
 
-	//Kernel::Instance().Initialize();
-	//Kernel::Instance().GetFileSystem().LoadSuperBlock();
-	//std::cout << "Unix V6++ FileSystem Loaded......OK" << std::endl;;
+	// 操作系统初始化
+	Kernel::Instance().Initialize();
+	Kernel::Instance().GetFileSystem().LoadSuperBlock();
+	std::cout << "Unix V6++ FileSystem Loaded......OK" << std::endl;;
+
+	// 初始化rootDirInode和用户当前工作目录，以便NameI()正常工作
+	FileManager& fileMgr = Kernel::Instance().GetFileManager();
+	fileMgr.rootDirInode = g_InodeTable.IGet(DeviceManager::ROOTDEV, FileSystem::ROOTINO);
+	fileMgr.rootDirInode->i_flag &= (~Inode::ILOCK);
+
+	User& u = Kernel::Instance().GetUser();
+	u.u_cdir = g_InodeTable.IGet(DeviceManager::ROOTDEV, FileSystem::ROOTINO);
+	u.u_cdir->i_flag &= (~Inode::ILOCK);
+	Utility::StringCopy("/", u.u_curdir);
 
 	//test();
 
@@ -51,6 +64,7 @@ int main()
 		{"cd",		Cd},
 		{"fin",		Fin},
 		{"fout",	Fout},
+		{"fdls",	Fdls},
 		{"exit",	Exit},
 		{"help",	Help},
 	};
@@ -74,6 +88,9 @@ int main()
 			loop = 0;
 		}
 	}
+
+	// 关闭磁盘驱动
+	DiskDriver::Close();
 
 	return 0;
 }

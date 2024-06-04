@@ -2,15 +2,15 @@
 
 void Format(const char* disk_file_path, int isize, int fsize);
 
-void ls		(const char* dir_path);
-void fopen	();
-void fclose	();
-void fread	();
-void fwrite	();
-void flseek	();
-void fcreat	();
-void mkdir	();
-void fdelete();
-void cd		();
-void fin	();
-void fout	();
+void _ls		(const char* dir_path);
+int _fopen	(const char* file_path, int mode);
+void _fclose	();
+void _fread	();
+void _fwrite	();
+void _flseek	();
+void _fcreat	();
+void _mkdir	();
+void _fdelete();
+void _cd		();
+void _fin	();
+void _fout	();

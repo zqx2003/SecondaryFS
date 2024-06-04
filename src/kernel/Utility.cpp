@@ -1,6 +1,6 @@
 #include "../inc/Utility.h"
 
-void Utility::StringCopy(char* src, char* dst)
+void Utility::StringCopy(const char* src, char* dst)
 {
 	while ((*dst++ = *src++) != 0);
 }

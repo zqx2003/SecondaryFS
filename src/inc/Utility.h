@@ -2,7 +2,7 @@
 
 class Utility {
 public:
-	static void StringCopy(char* src, char* dst);
+	static void StringCopy(const char* src, char* dst);
 
 	static int StringLength(char* pString);
 
