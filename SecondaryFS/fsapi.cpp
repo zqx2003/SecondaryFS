@@ -208,18 +208,18 @@ void Fread(const std::vector<std::string>& cmdTokens)
 		}
 	}
 
-	std::istringstream sin(cmdTokens[cmdTokens.size() - 1]);
+	std::istringstream sin(cmdTokens.end()[-2]);
 	User& u = Kernel::Instance().GetUser();
 	if (!(sin >> fd)) {
-		std::cout << "fd : [" << cmdTokens[cmdTokens.size() - 1] << "] 非法的文件描述符" << std::endl;
+		std::cout << "fd : [" << cmdTokens.end()[-2] << "] 非法的文件描述符" << std::endl;
 		return;
 	}
 
 	sin.clear();
-	sin.str(cmdTokens[cmdTokens.size() - 2]);
+	sin.str(cmdTokens.end()[-1]);
 	if (!(sin >> len)) {
 		std::cout << sin.good() << std::endl;
-		std::cout << "len : [" << cmdTokens[cmdTokens.size() - 2] << "] 非法的长度" << std::endl;
+		std::cout << "len : [" << cmdTokens.end()[-1] << "] 非法的长度" << std::endl;
 		return;
 	}
 
@@ -272,12 +272,72 @@ void Fwrite(const std::vector<std::string>& cmdTokens)
 
 void Flseek(const std::vector<std::string>& cmdTokens)
 {
-	if (cmdTokens.size() != 3) {
+	if (cmdTokens.size() != 3 && cmdTokens.size() != 4) {
 		std::cout << "flseek error: Incorrect number of parameters!" << std::endl;
 		return;
 	}
 
-	std::cout << "exec flseek" << std::endl;
+	int fd, position, whence = 0;	// 默认相对起始位置移动
+	if (cmdTokens.size() == 4) {
+		if (cmdTokens[1] == "--beg") {
+			whence = 0;
+		}
+		else if (cmdTokens[1] == "--cur") {
+			whence = 1;
+		}
+		else if (cmdTokens[1] == "--end") {
+			whence = 2;
+		}
+		else if (cmdTokens[1] == "--beg_block") {
+			whence = 3;
+		}
+		else if (cmdTokens[1] == "--cur_block") {
+			whence = 4;
+		}
+		else if (cmdTokens[1] == "--end_block") {
+			whence = 5;
+		}
+		else {
+			std::cout << "whence : [" << cmdTokens[1] << "] 非法的移动" << std::endl;
+			return;
+		}
+	}
+
+	std::istringstream sin(cmdTokens.end()[-2]);
+	if (!(sin >> fd)) {
+		std::cout << "fd : [" << cmdTokens.end()[-2] << "] 非法的文件描述符" << std::endl;
+		return;
+	}
+
+	sin.clear();
+	sin.str(cmdTokens.end()[-1]);
+	if (!(sin >> position)) {
+		std::cout << "position : [" << cmdTokens.end()[-1] << "] 非法的偏移量" << std::endl;
+		return;
+	}
+
+	User& u = Kernel::Instance().GetUser();
+
+	File* pFile = u.u_ofiles.GetF(fd);
+	if (pFile == nullptr) {
+		u.u_error = User::_NOERROR;
+		std::cout << "fd : [" << fd << "] 无效的文件描述符" << std::endl;
+		return;
+	}
+
+	_flseek(fd, position, whence);
+
+	if (pFile->f_offset < 0) {
+		std::cout << "offset : [" << pFile->f_offset << "] 超出范围——小于起始偏移量，修正为0" << std::endl;
+		pFile->f_offset = 0;
+	}
+	if (pFile->f_offset > pFile->f_inode->i_size) {
+		std::cout << "offset : [" << pFile->f_offset << "] 超出范围——大于末尾偏移量，修正为文件大小" << std::endl;
+		pFile->f_offset = pFile->f_inode->i_size;
+	}
+
+	std::cout << "fd : [" << fd << "] 当前操作文件 : [" << fd2path[fd] << "]" << std::endl;
+	std::cout << "对应文件指针修改为 : [" << pFile->f_offset << "]" << std::endl;
 }
 
 void Fcreat(const std::vector<std::string>& cmdTokens)
@@ -312,12 +372,37 @@ void Fdelete(const std::vector<std::string>& cmdTokens)
 
 void Cd(const std::vector<std::string>& cmdTokens)
 {
+	// 校验参数
 	if (cmdTokens.size() != 2) {
 		std::cout << "cd error: Incorrect number of parameters!" << std::endl;
 		return;
 	}
 
-	std::cout << "exec cd" << std::endl;
+	User& u = Kernel::Instance().GetUser();
+
+	std::string dstDir;
+	if (cmdTokens.end()[-1][0] == '/') {
+		dstDir = compressPath(cmdTokens.end()[-1]);
+	}
+	else {
+		dstDir = joinPath(u.u_curdir, cmdTokens.end()[-1]);
+	}
+
+	// 执行系统调用
+	_cd(dstDir.c_str());
+
+	// 错误处理
+	if (u.u_error != User::_NOERROR) {
+		
+		if (u.u_error == User::_ENOTDIR) {
+			std::cout << "dir : [" << cmdTokens.end()[-1] << "] 不是一个目录" << std::endl;
+		}
+		else {
+			std::cout << "dir : [" << cmdTokens.end()[-1] << "] 该目录不存在" << std::endl;
+		}
+		
+		u.u_error = User::_NOERROR;
+	}
 }
 
 void Fin(const std::vector<std::string>& cmdTokens)
@@ -436,7 +521,7 @@ void Help(const std::vector<std::string>& cmdTokens)
 		"	Discription:显示当前目录列表\n"
 		"2.fopen\n"
 		"	Usage:fopen [-r/w/wr] [name]\n"
-		"	Discription:以读、写、读写方式打开名为name的文件，返回fd\n"
+		"	Discription:以读、写、读写方式打开名为name的文件，返回fd，默认为读写方式打开\n"
 		"3.fclose\n"
 		"	Usage:fclose [fd]\n"
 		"	Discription:关闭文件描述符为fd的文件\n"
@@ -447,8 +532,8 @@ void Help(const std::vector<std::string>& cmdTokens)
 		"	Usage:fwrite [fd] [string] [length]\n"
 		"	Discription:向文件描述符为fd的文件写入内容为string的length个字节，(不足截断，超过补0)\n"
 		"6.flseek\n"
-		"	Usage:flseek [fd] [offset]\n"
-		"	Discription:将文件描述符为fd的文件的读写指针调整到距文件开头偏移量为offset的位置\n"
+		"	Usage:flseek [--beg/cur/end/beg_block/cur_block/end_block] [fd] [offset]\n"
+		"	Discription:将文件描述符为fd的文件的读写指针调整到距文件开头、当前、末尾偏移量为offset的位置，默认为开头，加block代表移动1字节变成移动512字节\n"
 		"7.fcreat\n"
 		"	Usage:fcreat [name]\n"
 		"	Discription:创建名为name的普通文件\n"

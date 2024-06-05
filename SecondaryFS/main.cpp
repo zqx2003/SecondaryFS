@@ -75,7 +75,7 @@ int main()
 	int loop = 1;
 	while (loop) {
 		std::string cmd;
-		std::cout << "[" << "user" << "@SecondFS " << "~]# ";
+		std::cout << "[" << "root" << "@SecondFS " << u.u_curdir << "]# ";
 		std::getline(std::cin, cmd);
 
 		std::string token;

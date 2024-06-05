@@ -978,7 +978,7 @@ void FileManager::ChDir()
 	}
 	this->m_InodeTable->IPut(u.u_cdir);
 	u.u_cdir = pInode;
-	// pInode->Prele();
+	pInode->Prele();
 
 	this->SetCurDir((char *)u.u_arg[0] /* pathname */);
 }

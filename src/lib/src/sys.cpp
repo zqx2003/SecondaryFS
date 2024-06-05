@@ -56,4 +56,31 @@ int _fread(int fd, char* buffer, int length)
 }
 
 
+void _flseek(int fd, int position, int whence)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
 
+	// 向user对象传入系统调用参数
+	u.u_arg[0] = fd;
+	u.u_arg[1] = position;
+	u.u_arg[2] = whence;
+
+	// 调用移动文件指针系统调用
+	FileMgr.Seek();
+}
+
+void _cd(const char* dir_path)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
+
+	// 向user对象传入系统调用参数
+	u.u_arg[0] = (int)dir_path;
+	u.u_dirp = (char*)dir_path;
+
+	// 调用移动文件指针系统调用
+	FileMgr.ChDir();
+}
