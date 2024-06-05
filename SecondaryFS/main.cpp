@@ -65,6 +65,9 @@ int main()
 		{"fin",		Fin},
 		{"fout",	Fout},
 		{"fdls",	Fdls},
+		{"ferror",	Ferror},
+		{"fclear",	Fclear},
+		{"pwd",		Pwd},
 		{"exit",	Exit},
 		{"help",	Help},
 	};

@@ -529,7 +529,7 @@ void Inode::IUpdate(int time)
 
 		/* 用dInode中的新数据覆盖缓存中的旧外存Inode */
 		Utility::DWordCopy((int *)pNode, (int *)p, sizeof(DiskInode) / sizeof(int));
-		std::cout << "modified!" << std::endl;
+
 		/* 将缓存写回至磁盘，达到更新旧外存Inode的目的 */
 		bufMgr.Bwrite(pBuf);
 	}

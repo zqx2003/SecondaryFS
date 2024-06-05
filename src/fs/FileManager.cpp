@@ -328,6 +328,7 @@ void FileManager::Rdwr(enum File::FileFlags mode)
 	/* 读写的模式不正确 */
 	if ((pFile->f_flag & mode) == 0)
 	{
+		std::cout << "Rdwr" << std::endl;
 		u.u_error = User::_EACCES;
 		return;
 	}
@@ -587,6 +588,7 @@ Inode *FileManager::NameI(char (*func)(), enum DirectorySearchMode mode)
 		/* 进行目录搜索权限检查,IEXEC在目录文件中表示搜索权限 */
 		if (this->Access(pInode, Inode::IEXEC))
 		{
+			std::cout << "NameI 1" << std::endl;
 			u.u_error = User::_EACCES;
 			break; /* 不具备目录搜索权限，goto out; */
 		}
@@ -645,6 +647,7 @@ Inode *FileManager::NameI(char (*func)(), enum DirectorySearchMode mode)
 					/* 判断该目录是否可写 */
 					if (this->Access(pInode, Inode::IWRITE))
 					{
+						std::cout << "NameI 2" << std::endl;
 						u.u_error = User::_EACCES;
 						goto out; /* Failed */
 					}
@@ -739,6 +742,7 @@ Inode *FileManager::NameI(char (*func)(), enum DirectorySearchMode mode)
 			/* 如果对父目录没有写的权限 */
 			if (this->Access(pInode, Inode::IWRITE))
 			{
+				std::cout << "NameI 3" << std::endl;
 				u.u_error = User::_EACCES;
 				break; /* goto out; */
 			}
@@ -868,6 +872,7 @@ int FileManager::Access(Inode *pInode, unsigned int mode)
 	{
 		if (Inode::IEXEC == mode && (pInode->i_mode & (Inode::IEXEC | (Inode::IEXEC >> 3) | (Inode::IEXEC >> 6))) == 0)
 		{
+			std::cout << "Access 1" << std::endl;
 			u.u_error = User::_EACCES;
 			return 1;
 		}
@@ -886,6 +891,7 @@ int FileManager::Access(Inode *pInode, unsigned int mode)
 		return 0;
 	}
 
+	std::cout << "Access 2" << std::endl;
 	u.u_error = User::_EACCES;
 	return 1;
 }

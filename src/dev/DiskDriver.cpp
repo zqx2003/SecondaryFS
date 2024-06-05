@@ -48,42 +48,42 @@ void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 	memset(initInode, 0, sizeof(initInode));
 
 	/* 根目录 */
-	initInode[1].d_mode = Inode::IFDIR | Inode::IEXEC;
+	initInode[1].d_mode = Inode::IFDIR | Inode::IEXEC | Inode::IREAD | Inode::IWRITE;
 	initInode[1].d_nlink = 1;
 	initInode[1].d_uid = 0;
 	initInode[1].d_size = 7 * sizeof(DirectoryEntry);
 	initInode[1].d_addr[0] = fsize - 14;
 
 	/* bin目录 */
-	initInode[2].d_mode = Inode::IFDIR | Inode::IEXEC;
+	initInode[2].d_mode = Inode::IFDIR | Inode::IEXEC | Inode::IREAD | Inode::IWRITE;
 	initInode[2].d_nlink = 1;
 	initInode[2].d_uid = 0;
 	initInode[2].d_size = 2 * sizeof(DirectoryEntry);
 	initInode[2].d_addr[0] = fsize - 13;
 
 	/* etc目录 */
-	initInode[3].d_mode = Inode::IFDIR | Inode::IEXEC;
+	initInode[3].d_mode = Inode::IFDIR | Inode::IEXEC | Inode::IREAD | Inode::IWRITE;
 	initInode[3].d_nlink = 1;
 	initInode[3].d_uid = 0;
 	initInode[3].d_size = 2 * sizeof(DirectoryEntry);
 	initInode[3].d_addr[0] = fsize - 12;
 
 	/* dev目录 */
-	initInode[4].d_mode = Inode::IFDIR | Inode::IEXEC;
+	initInode[4].d_mode = Inode::IFDIR | Inode::IEXEC | Inode::IREAD | Inode::IWRITE;
 	initInode[4].d_nlink = 1;
 	initInode[4].d_uid = 0;
 	initInode[4].d_size = 3 * sizeof(DirectoryEntry);
 	initInode[4].d_addr[0] = fsize - 11;
 
 	/* home目录 */
-	initInode[5].d_mode = Inode::IFDIR | Inode::IEXEC;
+	initInode[5].d_mode = Inode::IFDIR | Inode::IEXEC | Inode::IREAD | Inode::IWRITE;
 	initInode[5].d_nlink = 1;
 	initInode[5].d_uid = 0;
 	initInode[5].d_size = 2 * sizeof(DirectoryEntry);
 	initInode[5].d_addr[0] = fsize - 10;
 
 	/* shell文件 */
-	initInode[6].d_mode = 0;
+	initInode[6].d_mode = Inode::IEXEC | Inode::IREAD | Inode::IWRITE;
 	initInode[6].d_nlink = 1;
 	initInode[6].d_uid = 0;
 	initInode[6].d_size = 8 * Inode::BLOCK_SIZE;
@@ -96,7 +96,7 @@ void DiskDriver::DiskFormat(const char* disk_file_path, int isize, int fsize)
 	initInode[6].d_addr[6] = fsize - 3;
 
 	/* tty1文件 */
-	initInode[7].d_mode = Inode::IFCHR;
+	initInode[7].d_mode = Inode::IFCHR | Inode::IREAD | Inode::IWRITE;
 	initInode[7].d_uid = 0;
 	initInode[7].d_size = 0;
 

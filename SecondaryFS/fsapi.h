@@ -21,5 +21,8 @@ void Cd		(const std::vector<std::string>& cmdTokens);
 void Fin	(const std::vector<std::string>& cmdTokens);
 void Fout	(const std::vector<std::string>& cmdTokens);
 void Fdls	(const std::vector<std::string>& cmdTokens);
+void Ferror	(const std::vector<std::string>& cmdTokens);
+void Fclear	(const std::vector<std::string>& cmdTokens);
+void Pwd	(const std::vector<std::string>& cmdTokens);
 void Exit	(const std::vector<std::string>& cmdTokens);
 void Help	(const std::vector<std::string>& cmdTokens);

@@ -26,3 +26,34 @@ int _fopen(const char* file_path, int mode)
 	return u.u_ar0;
 }
 
+void _fclose(int fd)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
+
+	// 向user对象传入文件描述符
+	u.u_arg[0] = fd;
+
+	// 调用系统调用关闭文件
+	FileMgr.Close();
+}
+
+int _fread(int fd, char* buffer, int length)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
+
+	// 向user对象传入系统调用参数
+	u.u_arg[0] = fd;
+	u.u_arg[1] = (int)buffer;
+	u.u_arg[2] = length;
+
+	// 调用读文件系统调用，返回读取字符数
+	FileMgr.Read();
+	return u.u_ar0;
+}
+
+
+
