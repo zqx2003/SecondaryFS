@@ -70,7 +70,7 @@ void FileManager::Creat()
 		 * 不需要进行权限检查，因为刚刚建立的文件的权限和传入参数mode
 		 * 所表示的权限内容是一样的。
 		 */
-		this->Open1(pInode, File::FWRITE, 2);
+		this->Open1(pInode, File::FREAD | File::FWRITE, 2);
 	}
 	else
 	{

@@ -2,13 +2,12 @@
 
 void Format(const char* disk_file_path, int isize, int fsize);
 
-void _ls		(const char* dir_path);
-int _fopen		(const char* file_path, int mode);
+int	 _fopen		(const char* file_path, int mode);
 void _fclose	(int fd);
-int _fread		(int fd, char* buffer, int length);
-void _fwrite	();
+int  _fread		(int fd, char* buffer, int length);
+int  _fwrite	(int fd, char* buffer, int length);
 void _flseek	(int fd, int position, int whence);
-void _fcreat	();
+int  _fcreat	(const char* file_path, int mode);
 void _mkdir		();
 void _fdelete	();
 void _cd		(const char* dir_path);

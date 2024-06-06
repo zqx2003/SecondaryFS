@@ -7,10 +7,6 @@ void Format(const char* disk_file_path, int isize, int fsize)
 	DiskDriver::DiskFormat(disk_file_path, isize, fsize);
 }
 
-void _ls(const char* dir_path)
-{
-}
-
 int _fopen(const char* file_path, int mode)
 {
 	// 获取内核对象
@@ -55,6 +51,22 @@ int _fread(int fd, char* buffer, int length)
 	return u.u_ar0;
 }
 
+int _fwrite(int fd, char* buffer, int length)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
+
+	// 向user对象传入系统调用参数
+	u.u_arg[0] = fd;
+	u.u_arg[1] = (int)buffer;
+	u.u_arg[2] = length;
+
+	// 调用读文件系统调用，返回写入字符数
+	FileMgr.Write();
+	return u.u_ar0;
+}
+
 
 void _flseek(int fd, int position, int whence)
 {
@@ -69,6 +81,22 @@ void _flseek(int fd, int position, int whence)
 
 	// 调用移动文件指针系统调用
 	FileMgr.Seek();
+}
+
+int _fcreat(const char* file_path, int mode)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
+
+	// 向user对象传入系统调用参数
+	u.u_arg[0] = (int)file_path;
+	u.u_arg[1] = mode;
+	u.u_dirp = (char*)file_path;
+
+	// 调用移动文件指针系统调用
+	FileMgr.Creat();
+	return u.u_ar0;
 }
 
 void _cd(const char* dir_path)

@@ -153,10 +153,10 @@ void Fopen(const std::vector<std::string>& cmdTokens)
 	}
 	std::cout << "fd : " << fd << std::endl;
 
-	if (cmdTokens[1][0] == '/') {
+	if (cmdTokens[1][0] == '/') {	// 绝对路径
 		fd2path[fd] = compressPath(file_path);
 	}
-	else {
+	else {							// 相对路径
 		fd2path[fd] = joinPath(u.u_curdir, file_path);
 	}
 }
@@ -262,12 +262,69 @@ void Fread(const std::vector<std::string>& cmdTokens)
 
 void Fwrite(const std::vector<std::string>& cmdTokens)
 {
+	// 校验参数
 	if (cmdTokens.size() != 4) {
 		std::cout << "fwrite error: Incorrect number of parameters!" << std::endl;
 		return;
 	}
 
-	std::cout << "exec fwrite" << std::endl;
+	// 读入参数
+	int fd, len;
+	std::string content(cmdTokens.end()[-2]);
+
+	std::istringstream sin(cmdTokens.end()[-3]);
+	User& u = Kernel::Instance().GetUser();
+	if (!(sin >> fd)) {
+		std::cout << "fd : [" << cmdTokens.end()[-3] << "] 非法的文件描述符" << std::endl;
+		return;
+	}
+
+	sin.clear();
+	sin.str(cmdTokens.end()[-1]);
+	if (!(sin >> len)) {
+		std::cout << sin.good() << std::endl;
+		std::cout << "len : [" << cmdTokens.end()[-1] << "] 非法的长度" << std::endl;
+		return;
+	}
+
+	if (u.u_ofiles.GetF(fd) == nullptr) {
+		u.u_error = User::_NOERROR;
+		std::cout << "fd : [" << fd << "] 无效的文件描述符" << std::endl;
+		return;
+	}
+
+	content.resize(len, '\0');
+
+	// 施工区。。。
+	int realLen = 0;
+	char buffer[Inode::BLOCK_SIZE + 1];
+	std::ostringstream sout;
+
+	while ((len + Inode::BLOCK_SIZE - 1) / Inode::BLOCK_SIZE) {
+		// 最多读取一个缓冲区大小字节数
+		int blen = _fread(fd, buffer, Utility::Min(Inode::BLOCK_SIZE, len));
+		buffer[blen] = '\0';
+
+		// 存入读取内容存入输出流对象
+		sout << buffer;
+
+		// 计算剩余读取长度
+		realLen += blen;
+		len -= blen;
+
+		// 未读满一个缓冲区，或读取出错，说明文件已结束
+		if (blen < Inode::BLOCK_SIZE || u.u_error != User::_NOERROR) {
+			break;
+		}
+	}
+
+	std::cout << "实际读取字节" << realLen << "B" << std::endl;
+	if (u.u_error != User::_NOERROR) {
+		std::cout << "读取过程出错" << std::endl;
+	}
+	std::cout << "/**********开始**********/" << std::endl;
+	std::cout << sout.str() << std::endl;
+	std::cout << "/**********结束**********/" << std::endl;
 }
 
 void Flseek(const std::vector<std::string>& cmdTokens)
@@ -347,7 +404,28 @@ void Fcreat(const std::vector<std::string>& cmdTokens)
 		return;
 	}
 
-	std::cout << "exec fcreate" << std::endl;
+	User& u = Kernel::Instance().GetUser();
+
+	// 默认以读写方式打开
+	int mode = Inode::IREAD | Inode::IWRITE;
+	std::string file_path = cmdTokens.end()[-1];
+
+
+	int fd = _fcreat(file_path.c_str(), mode);
+
+	if (u.u_error != User::_NOERROR) {
+		std::cout << "文件[" << file_path << "]创建失败" << std::endl;
+		u.u_error = User::_NOERROR;
+		return;
+	}
+	std::cout << "fd : " << fd << std::endl;
+
+	if (cmdTokens[1][0] == '/') {	// 绝对路径
+		fd2path[fd] = compressPath(file_path);
+	}
+	else {							// 相对路径
+		fd2path[fd] = joinPath(u.u_curdir, file_path);
+	}
 }
 
 void Mkdir(const std::vector<std::string>& cmdTokens)
