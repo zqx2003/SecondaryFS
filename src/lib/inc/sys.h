@@ -12,3 +12,4 @@ void _mkdir		(const char* dir_path);
 void _fdelete	(const char* path);
 void _cd		(const char* dir_path);
 void _fsync		(void);
+void _link		(const char* new_path, const char* path);

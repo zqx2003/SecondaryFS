@@ -148,3 +148,17 @@ void _fsync(void)
 	// 调用跳转目录系统调用
 	FileSys.Update();
 }
+
+void _link(const char* new_path, const char* path)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
+
+	// 向user对象传入系统调用参数
+	u.u_arg[1] = (int)new_path;
+	u.u_dirp = (char*)path;
+
+	// 调用跳转目录系统调用
+	FileMgr.Link();
+}

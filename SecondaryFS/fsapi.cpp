@@ -438,6 +438,18 @@ void Mkdir(const std::vector<std::string>& cmdTokens)
 	std::string dir_path = cmdTokens.end()[-1];
 
 	_mkdir(dir_path.c_str());
+
+	if (u.u_error != User::_NOERROR) {
+		if (u.u_error == User::_EEXIST) {
+			std::cout << "dir : [" << cmdTokens.end()[-1] << "] 目录已存在" << std::endl;
+		}
+		else {
+			std::cout << "dir : [" << cmdTokens.end()[-1] << "] 目录创建失败" << std::endl;
+		}
+
+		u.u_error = User::_NOERROR;
+		return;
+	}
 	
 	// 手动将.和..写入目录文件中
 	int fd = _fopen(dir_path.c_str(), File::FREAD);
@@ -462,18 +474,6 @@ void Mkdir(const std::vector<std::string>& cmdTokens)
 
 	_fclose(fd);
 	_fclose(pfd);
-
-	if (u.u_error != User::_NOERROR) {
-		if (u.u_error == User::_EEXIST) {
-			std::cout << "dir : [" << cmdTokens.end()[-1] << "] 目录已存在" << std::endl;
-		}
-		else {
-			std::cout << "dir : [" << cmdTokens.end()[-1] << "] 目录创建失败" << std::endl;
-		}
-		
-		u.u_error = User::_NOERROR;
-		return;
-	}
 }
 
 void Fdelete(const std::vector<std::string>& cmdTokens)
@@ -722,7 +722,7 @@ void Pwd(const std::vector<std::string>& cmdTokens)
 void Fsync(const std::vector<std::string>& cmdTokens)
 {
 	if (cmdTokens.size() != 1) {
-		std::cout << "exit error: Incorrect number of parameters!" << std::endl;
+		std::cout << "fsync error: Incorrect number of parameters!" << std::endl;
 		return;
 	}
 
@@ -730,6 +730,62 @@ void Fsync(const std::vector<std::string>& cmdTokens)
 	_fsync();
 
 	std::cout << "已同步文件系统到磁盘" << std::endl;
+}
+
+void Flink(const std::vector<std::string>& cmdTokens)
+{
+	if (cmdTokens.size() != 3) {
+		std::cout << "flink error: Incorrect number of parameters!" << std::endl;
+		return;
+	}
+
+	User& u = Kernel::Instance().GetUser();
+
+	std::string new_path = cmdTokens.end()[-2];
+	std::string path = cmdTokens.end()[-1];
+
+	// 调用创建链接系统调用
+	_link(new_path.c_str(), path.c_str());
+
+	if (u.u_error != User::_NOERROR) {
+		if (u.u_error == User::_EEXIST) {
+			std::cout << "文件[" << new_path << "]已存在" << std::endl;
+		}
+		else {
+			std::cout << "error : [" << u.u_error << "] 链接[" << new_path << "]->[" << path << "]创建失败" << std::endl;
+		}
+
+		u.u_error = User::_NOERROR;
+		return;
+	}
+
+	std::cout << "链接[" << new_path << "]->[" << path << "]创建成功" << std::endl;
+}
+
+void Fsize(const std::vector<std::string>& cmdTokens)
+{
+	if (cmdTokens.size() != 2) {
+		std::cout << "fsize error: Incorrect number of parameters!" << std::endl;
+		return;
+	}
+
+	User& u = Kernel::Instance().GetUser();
+
+	std::string file_path = cmdTokens.end()[-1];
+
+	// 调用创建链接系统调用
+	int fd = _fopen(file_path.c_str(), File::FREAD);
+	if (u.u_error != User::_NOERROR) {
+		std::cout << "文件[" << file_path << "]打开失败" << std::endl;
+		u.u_error = User::_NOERROR;
+		return;
+	}
+
+	_flseek(fd, 0, 2);
+	int size = u.u_ofiles.GetF(fd)->f_offset;
+	_fclose(fd);
+
+	std::cout << "文件[" << file_path << "]的大小为 : " << size << "B" << std::endl;
 }
 
 void Exit(const std::vector<std::string>& cmdTokens)
