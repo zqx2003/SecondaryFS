@@ -68,6 +68,7 @@ int main()
 		{"ferror",	Ferror},
 		{"fclear",	Fclear},
 		{"pwd",		Pwd},
+		{"fsync",	Fsync},
 		{"exit",	Exit},
 		{"help",	Help},
 	};

@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <map>
 #include <deque>
 #include "fsapi.h"
@@ -97,7 +98,7 @@ void Ls(const std::vector<std::string>& cmdTokens)
 	int fd = _fopen(dirPath.c_str(), File::FREAD);
 
 	if (u.u_error != User::_NOERROR) {
-		std::cout << "目录[" << dirPath << "]打开失败" << std::endl;
+		std::cout << "error : [" << u.u_error << "] 目录[" << dirPath << "]打开失败" << std::endl;
 		u.u_error = User::_NOERROR;
 		return;
 	}
@@ -235,18 +236,18 @@ void Fread(const std::vector<std::string>& cmdTokens)
 	
 	while ((len + Inode::BLOCK_SIZE - 1) / Inode::BLOCK_SIZE) {
 		// 最多读取一个缓冲区大小字节数
-		int blen = _fread(fd, buffer, Utility::Min(Inode::BLOCK_SIZE, len));
-		buffer[blen] = '\0';
+		int count = _fread(fd, buffer, Utility::Min(Inode::BLOCK_SIZE, len));
+		buffer[count] = '\0';
 
 		// 存入读取内容存入输出流对象
 		sout << buffer;
 
 		// 计算剩余读取长度
-		realLen += blen;
-		len -= blen;
+		realLen += count;
+		len -= count;
 
 		// 未读满一个缓冲区，或读取出错，说明文件已结束
-		if (blen < Inode::BLOCK_SIZE || u.u_error != User::_NOERROR) {
+		if (count < Inode::BLOCK_SIZE || u.u_error != User::_NOERROR) {
 			break;
 		}
 	}
@@ -295,36 +296,28 @@ void Fwrite(const std::vector<std::string>& cmdTokens)
 
 	content.resize(len, '\0');
 
-	// 施工区。。。
 	int realLen = 0;
-	char buffer[Inode::BLOCK_SIZE + 1];
-	std::ostringstream sout;
+	const char* buffer = content.c_str();
 
 	while ((len + Inode::BLOCK_SIZE - 1) / Inode::BLOCK_SIZE) {
 		// 最多读取一个缓冲区大小字节数
-		int blen = _fread(fd, buffer, Utility::Min(Inode::BLOCK_SIZE, len));
-		buffer[blen] = '\0';
-
-		// 存入读取内容存入输出流对象
-		sout << buffer;
+		int count = _fwrite(fd, buffer, Utility::Min(Inode::BLOCK_SIZE, len));
 
 		// 计算剩余读取长度
-		realLen += blen;
-		len -= blen;
+		realLen += count;
+		len -= count;
+		buffer += count;
 
 		// 未读满一个缓冲区，或读取出错，说明文件已结束
-		if (blen < Inode::BLOCK_SIZE || u.u_error != User::_NOERROR) {
+		if (count < Inode::BLOCK_SIZE || u.u_error != User::_NOERROR) {
 			break;
 		}
 	}
 
-	std::cout << "实际读取字节" << realLen << "B" << std::endl;
+	std::cout << "实际写入字节" << realLen << "B" << std::endl;
 	if (u.u_error != User::_NOERROR) {
-		std::cout << "读取过程出错" << std::endl;
+		std::cout << "写入过程出错" << std::endl;
 	}
-	std::cout << "/**********开始**********/" << std::endl;
-	std::cout << sout.str() << std::endl;
-	std::cout << "/**********结束**********/" << std::endl;
 }
 
 void Flseek(const std::vector<std::string>& cmdTokens)
@@ -410,7 +403,6 @@ void Fcreat(const std::vector<std::string>& cmdTokens)
 	int mode = Inode::IREAD | Inode::IWRITE;
 	std::string file_path = cmdTokens.end()[-1];
 
-
 	int fd = _fcreat(file_path.c_str(), mode);
 
 	if (u.u_error != User::_NOERROR) {
@@ -435,7 +427,53 @@ void Mkdir(const std::vector<std::string>& cmdTokens)
 		return;
 	}
 
-	std::cout << "exec mkdir" << std::endl;
+	struct DirEntry {
+		int m_ino;
+		char m_name[DirectoryEntry::DIRSIZ];
+	} dent = { 0, "" };
+
+	User& u = Kernel::Instance().GetUser();
+	FileManager& fileMgr = Kernel::Instance().GetFileManager();
+
+	std::string dir_path = cmdTokens.end()[-1];
+
+	_mkdir(dir_path.c_str());
+	
+	// 手动将.和..写入目录文件中
+	int fd = _fopen(dir_path.c_str(), File::FREAD);
+	int pfd = _fopen(joinPath(dir_path, "/..").c_str(), File::FREAD);
+
+	Inode* pFile = u.u_ofiles.GetF(fd)->f_inode;
+	Inode* ppFile = u.u_ofiles.GetF(pfd)->f_inode;
+
+	dent.m_ino = pFile->i_number;
+	Utility::StringCopy(".", dent.m_name);
+	u.u_IOParam.m_Count = sizeof(DirEntry);
+	u.u_IOParam.m_Base = (char*)&dent;
+
+	pFile->WriteI();
+
+	dent.m_ino = ppFile->i_number;
+	Utility::StringCopy("..", dent.m_name);
+	u.u_IOParam.m_Count = sizeof(DirEntry);
+	u.u_IOParam.m_Base = (char*)&dent;
+
+	pFile->WriteI();
+
+	_fclose(fd);
+	_fclose(pfd);
+
+	if (u.u_error != User::_NOERROR) {
+		if (u.u_error == User::_EEXIST) {
+			std::cout << "dir : [" << cmdTokens.end()[-1] << "] 目录已存在" << std::endl;
+		}
+		else {
+			std::cout << "dir : [" << cmdTokens.end()[-1] << "] 目录创建失败" << std::endl;
+		}
+		
+		u.u_error = User::_NOERROR;
+		return;
+	}
 }
 
 void Fdelete(const std::vector<std::string>& cmdTokens)
@@ -445,7 +483,23 @@ void Fdelete(const std::vector<std::string>& cmdTokens)
 		return;
 	}
 
-	std::cout << "exec fdelete" << std::endl;
+	User& u = Kernel::Instance().GetUser();
+
+	std::string path = cmdTokens.end()[-1];
+
+	_fdelete(path.c_str());
+
+	if (u.u_error == User::_NOERROR) {
+		if (u.u_error == User::_ENOENT) {
+			std::cout << "error : [" << u.u_error << "] 文件[" << path << "]不存在" << std::endl;
+		}
+		else {
+			std::cout << "error : [" << u.u_error << "] 文件[" << path << "]删除失败" << std::endl;
+		}
+		return;
+	}
+
+	std::cout << "文件[" << path << "]删除成功" << std::endl;
 }
 
 void Cd(const std::vector<std::string>& cmdTokens)
@@ -490,7 +544,53 @@ void Fin(const std::vector<std::string>& cmdTokens)
 		return;
 	}
 
-	std::cout << "exec fin" << std::endl;
+	std::string extraname = cmdTokens.end()[-2];
+	std::string intraname = cmdTokens.end()[-1];
+
+	std::ifstream fin(extraname, std::ios::in | std::ios::binary);
+	if (!fin.is_open()) {
+		std::cout << "外部文件[" << extraname << "]打开失败" << std::endl;
+		return;
+	}
+
+	char buffer[Inode::BLOCK_SIZE];
+	User& u = Kernel::Instance().GetUser();
+
+	int fd = _fcreat(intraname.c_str(), File::FWRITE);
+	if (u.u_error != User::_NOERROR) {
+		std::cout << "文件[" << intraname << "]打开失败" << std::endl;
+		u.u_error = User::_NOERROR;
+		fin.close();
+		return;
+	}
+
+	fin.seekg(0, std::ios::end);
+	int len = (int)fin.tellg();
+	fin.seekg(0, std::ios::beg);
+	while (len) {
+		// 从外部文件读入
+		fin.read(buffer, Utility::Min(Inode::BLOCK_SIZE, len));
+
+		// 向内部文件写入
+		_fwrite(fd, buffer, (int)fin.gcount());
+
+		// 计算剩余读取字符数
+		len -= (int)fin.gcount();
+
+		if (u.u_error != User::_NOERROR) {
+			break;
+		}
+	}
+
+	// 关闭文件
+	fin.close();
+	_fclose(fd);
+
+	if (u.u_error != User::_NOERROR) {
+		std::cout << "外部文件[" << extraname << "]写入内部文件[" << intraname << "]失败" << std::endl;
+		return;
+	}
+	std::cout << "外部文件[" << extraname << "]写入内部文件[" << intraname << "]成功" << std::endl;
 }
 
 void Fout(const std::vector<std::string>& cmdTokens)
@@ -499,7 +599,54 @@ void Fout(const std::vector<std::string>& cmdTokens)
 		std::cout << "fout error: Incorrect number of parameters!" << std::endl;
 		return;
 	}
-	std::cout << "exec fout" << std::endl;
+	
+	std::string intraname = cmdTokens.end()[-2];
+	std::string extraname = cmdTokens.end()[-1];
+
+	std::ofstream fout(extraname, std::ios::out | std::ios::binary);
+	if (!fout.is_open()) {
+		std::cout << "外部文件[" << extraname << "]打开失败" << std::endl;
+		return;
+	}
+
+	char buffer[Inode::BLOCK_SIZE];
+	User& u = Kernel::Instance().GetUser();
+
+	int fd = _fopen(intraname.c_str(), File::FREAD);
+	if (u.u_error != User::_NOERROR) {
+		std::cout << "文件[" << intraname << "]打开失败" << std::endl;
+		u.u_error = User::_NOERROR;
+		fout.close();
+		return;
+	}
+
+	_flseek(fd, 0, 2);
+	int len = u.u_ofiles.GetF(fd)->f_offset;
+	_flseek(fd, 0, 0);
+	while (len) {
+		// 从内部文件读入
+		int count = _fread(fd, buffer, Utility::Min(Inode::BLOCK_SIZE, len));
+
+		// 向外部文件写入
+		fout.write(buffer, count);
+
+		// 计算剩余读取字符数
+		len -= count;
+
+		if (u.u_error != User::_NOERROR) {
+			break;
+		}
+	}
+
+	// 关闭文件
+	fout.close();
+	_fclose(fd);
+
+	if (u.u_error != User::_NOERROR) {
+		std::cout << "内部文件[" << intraname << "]写入外部文件[" << extraname << "]失败" << std::endl;
+		return;
+	}
+	std::cout << "内部文件[" << intraname << "]写入外部文件[" << extraname << "]成功" << std::endl;
 }
 
 void Fdls(const std::vector<std::string>& cmdTokens)
@@ -572,6 +719,19 @@ void Pwd(const std::vector<std::string>& cmdTokens)
 	std::cout << u.u_curdir << std::endl;
 }
 
+void Fsync(const std::vector<std::string>& cmdTokens)
+{
+	if (cmdTokens.size() != 1) {
+		std::cout << "exit error: Incorrect number of parameters!" << std::endl;
+		return;
+	}
+
+	/* 同步文件系统，Inode, superblock写回缓存，并将延迟写的缓存写回磁盘 */
+	_fsync();
+
+	std::cout << "已同步文件系统到磁盘" << std::endl;
+}
+
 void Exit(const std::vector<std::string>& cmdTokens)
 {
 	if (cmdTokens.size() != 1) {
@@ -579,11 +739,27 @@ void Exit(const std::vector<std::string>& cmdTokens)
 		return;
 	}
 
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+
 	/* 关闭所有文件 */
+	for (int fd = 0; fd < OpenFiles::NOFILES; fd++) {
+		File* f = u.u_ofiles.GetF(fd);
+		if (f) {
+			_fclose(fd);
+			std::cout << "系统自动关闭文件[" << fd2path[fd] << "]" << std::endl;
+			fd2path.erase(fd);
+		}
+	}
 
-	/* 缓存写回磁盘 */
+	// 遍历到空的File*会出错，此处清除避免影响正常功能
+	u.u_error = User::_NOERROR;
 
-	std::cout << "exec exit" << std::endl;
+	/* Inode, superblock写回缓存，并将延迟写的缓存写回磁盘 */
+	_fsync();
+
+	std::cout << "已同步文件系统到磁盘" << std::endl;
+	std::cout << "已退出文件系统，欢迎再次访问" << std::endl;
 }
 
 void Help(const std::vector<std::string>& cmdTokens)
@@ -642,7 +818,10 @@ void Help(const std::vector<std::string>& cmdTokens)
 		"16.pwd\n"
 		"	Usage:pwd\n"
 		"	Discription:输出当前目录\n"
-		"17.exit\n"
+		"17.fsync\n"
+		"	Usage:fsync\n"
+		"	Discription:同步文件系统到磁盘\n"
+		"18.exit\n"
 		"	Usage:exit\n"
 		"	Discription:退出系统\n"
 		;

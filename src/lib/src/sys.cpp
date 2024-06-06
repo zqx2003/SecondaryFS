@@ -51,7 +51,7 @@ int _fread(int fd, char* buffer, int length)
 	return u.u_ar0;
 }
 
-int _fwrite(int fd, char* buffer, int length)
+int _fwrite(int fd, const char* buffer, int length)
 {
 	// 获取内核对象
 	User& u = Kernel::Instance().GetUser();
@@ -99,6 +99,33 @@ int _fcreat(const char* file_path, int mode)
 	return u.u_ar0;
 }
 
+void _mkdir(const char* dir_path)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
+
+	// 向user对象传入系统调用参数
+	u.u_dirp = (char*)dir_path;
+	u.u_arg[1] = 040755;
+
+	// 调用创建目录系统调用
+	FileMgr.MkNod();
+}
+
+void _fdelete(const char* path)
+{
+	// 获取内核对象
+	User& u = Kernel::Instance().GetUser();
+	FileManager& FileMgr = Kernel::Instance().GetFileManager();
+
+	// 向user对象传入系统调用参数
+	u.u_dirp = (char*)path;
+
+	// 调用删除文件系统调用
+	FileMgr.UnLink();
+}
+
 void _cd(const char* dir_path)
 {
 	// 获取内核对象
@@ -109,6 +136,15 @@ void _cd(const char* dir_path)
 	u.u_arg[0] = (int)dir_path;
 	u.u_dirp = (char*)dir_path;
 
-	// 调用移动文件指针系统调用
+	// 调用跳转目录系统调用
 	FileMgr.ChDir();
+}
+
+void _fsync(void)
+{
+	// 获取内核对象
+	FileSystem& FileSys = Kernel::Instance().GetFileSystem();
+
+	// 调用跳转目录系统调用
+	FileSys.Update();
 }
