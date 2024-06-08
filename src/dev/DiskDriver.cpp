@@ -260,7 +260,7 @@ void DiskDriver::DevStart(Buf* bp)
 				disk->seekg(disk_addr, std::ios::beg);
 				disk->read(reinterpret_cast<char*>(bp->b_addr), BufferManager::BUFFER_SIZE);
 			}
-
+			
 			callback();
 		},
 				[]() {												/* 使用回调函数模拟磁盘中断 */
@@ -281,13 +281,12 @@ void DiskDriver::DevStart(Buf* bp)
 				disk->seekp(disk_addr, std::ios::beg);
 				disk->write(reinterpret_cast<const char*>(bp->b_addr), BufferManager::BUFFER_SIZE);
 			}
-
+			
 			callback();
 		},
 				[]() {														/* 使用回调函数模拟磁盘中断 */
 			DiskHandler();
-		})
-		);	
+		}));	
 	}
 }
 
